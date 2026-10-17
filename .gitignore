@@ -20,6 +20,9 @@ out/
 !.env.example
 *.log
 
+# Experiment results (generated outputs)
+results/
+
 # OS
 .DS_Store
 Thumbs.db
