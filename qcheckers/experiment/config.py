@@ -66,14 +66,14 @@ class ExperimentConfig:
     condition: ConditionConfig
     seeds: tuple[int, ...] = ()
     n_games: int = 0
-    # TODO-confirm the board-size default with P5.
+    # Board-size default adopted from previous implementation.
     board_size: int = 4
-    # TODO-confirm the max_plies default with P5.
-    max_plies: int = 120
+    # Max-plies default adopted from previous implementation.
+    max_plies: int = 200
     z: float = Z_95
     notes: str = (
         "TODO-confirm with P1/P5 whether Rejoin is disabled when Observe is off; "
-        "TODO-confirm engine level numbering with P5."
+        "engine level numbering adopted from previous implementation."
     )
 
     def __post_init__(self) -> None:
@@ -119,7 +119,7 @@ def ablation_label(agent_a: str, agent_b: str, observe: bool) -> str:
     return f"ablation-{agent_a}-vs-{agent_b}-{suffix}"
 
 
-# TODO-confirm with P5 what these engine level numbers mean.
+# Engine level numbers adopted from previous implementation.
 # TODO-confirm with P1/P5 whether Rejoin is disabled when Observe is off.
 CONDITIONS: tuple[ConditionConfig, ...] = (
     ConditionConfig(
@@ -141,7 +141,8 @@ CONDITIONS: tuple[ConditionConfig, ...] = (
         2,
         True,
         ("mcts", "random"),
-        "MCTS versus random with Observe enabled; level semantics TODO-confirm with P5.",
+        "MCTS versus random with Observe enabled; level semantics adopted from "
+        "previous implementation.",
     ),
     ConditionConfig(
         ablation_label("mcts", "random", False),
@@ -156,7 +157,7 @@ CONDITIONS: tuple[ConditionConfig, ...] = (
         True,
         ("prob", "random"),
         "Probability-aware agent versus random with Observe enabled; level semantics "
-        "TODO-confirm with P5.",
+        "adopted from previous implementation.",
     ),
     ConditionConfig(
         ablation_label("prob", "random", False),
