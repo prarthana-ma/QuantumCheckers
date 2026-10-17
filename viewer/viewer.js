@@ -1,6 +1,6 @@
 /* QuriousMinds replay viewer -- plain ES2018, no framework, no build step.
  *
- * Owner: Person E (replay viewer and reproducibility package).
+ * Owner: P4 (replay viewer and reproducibility package).
  *
  * Design constraints, all deliberate:
  *

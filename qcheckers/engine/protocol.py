@@ -405,7 +405,7 @@ class GameEngine(Protocol):
     def outcome(self, state: GameState) -> GameOutcome | None: ...
 
     def render(self, state: GameState) -> dict[str, Any]:
-        """JSON-ready board description for the replay viewer (Person E)."""
+        """JSON-ready board description for the replay viewer (P4)."""
         ...
 
 

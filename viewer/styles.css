@@ -1,6 +1,6 @@
 /* QuriousMinds replay viewer -- minimal static styling.
  *
- * Owner: Person E (replay viewer and reproducibility package).
+ * Owner: P4 (replay viewer and reproducibility package).
  *
  * Plain CSS, no build step, no framework, no web fonts: the viewer must work from a
  * `file://` URL on a laptop with no network. Colours are chosen to stay readable in

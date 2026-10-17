@@ -1,6 +1,6 @@
 """Visualisation layer for the replay viewer.
 
-Owner: **Person E -- replay viewer and reproducibility package**. Person E also owns the
+Owner: **P4 -- replay viewer and reproducibility package**. P4 also owns the
 pinned environment and the reproducibility report, so anything in this package must
 stay dependency-light and build-step free.
 """

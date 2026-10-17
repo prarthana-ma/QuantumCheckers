@@ -1,7 +1,7 @@
 """CLI: run a seeded baseline batch and write JSONL logs.
 
 Owner: **Person B -- baseline agents and harness**. Person D consumes the output;
-Person E uses it for the viewer and the reproducibility report.
+P4 uses it for the viewer and the reproducibility report.
 
 What it does
 ------------
