@@ -1,12 +1,44 @@
-"""Generate deterministic PNG summaries from experiment JSONL logs."""
+"""CLI: read JSONL logs and write matplotlib PNGs into ``results/plots/``.
+
+Owner: **Person D -- measurement, statistics and plots**.
+
+Every figure this script produces states its sample size and the condition labels, as
+brief section 12 requires, and every figure is regenerated purely from the logs -- no
+plot may depend on state that is not in a log line. That is the rule Person D is
+required to enforce (brief section 13), and this script is where it is enforced.
+
+Plots produced
+--------------
+1. ``win_draw_rates.png`` -- win and draw rates per condition with Wilson intervals.
+2. ``collapse_frequency.png`` -- fraction of games containing a collapse.
+3. ``game_length.png`` -- game-length distribution per condition (box plot, plus
+   individual points so a small sample is not over-claimed).
+4. ``quantum_move_usage.png`` -- Observe and spread usage per game.
+
+Phase and amplitude are deliberately absent because this project's game engine stores
+occupancy chances only. The independent Qiskit demonstration exercises phase in a
+separate circuit; those circuit outputs are not game experiment measurements.
+
+Usage
+-----
+::
+
+    python scripts/make_plots.py
+    python scripts/make_plots.py --results-dir results --out-dir results/plots
+    python scripts/make_plots.py --log results/quantum-observe-vs-random.jsonl \\
+        --log results/classical-mcts-vs-random.jsonl
+
+Matplotlib is imported lazily inside :func:`main` so that ``--help`` works even before
+the environment is installed, and so importing this module never forces a GUI
+backend.
+"""
 
 from __future__ import annotations
 
 import argparse
-import glob
-import json
 import shlex
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -14,388 +46,487 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from qcheckers.experiment.config import (
-    CONDITIONS,
-    MIN_GAMES_JUSTIFIED,
-    PRIMARY_METRIC,
-)
-from qcheckers.experiment.stats import (
-    Rate,
-    _observe_moves,
-    _plies,
-    _spread_moves,
-    compare_conditions,
-    summarize,
+from qcheckers.experiment.config import CONDITIONS, MIN_GAMES_JUSTIFIED  # noqa: E402
+from qcheckers.experiment.runner import read_jsonl  # noqa: E402
+from qcheckers.experiment.stats import Rate, summarize  # noqa: E402
+
+#: Figures written by :func:`main`, in order.
+FIGURE_NAMES = (
+    "win_draw_rates",
+    "collapse_frequency",
+    "game_length",
+    "quantum_move_usage",
 )
 
-FIGURE_NAMES = (
-    "win_draw_rates.png",
-    "collapse_frequency.png",
-    "game_length.png",
-    "quantum_move_usage.png",
-    "ablation_effects.png",
+#: Footer text on every figure. Non-negotiable provenance, kept in one place.
+PROVENANCE_FOOTER = (
+    "QuriousMinds -- toy engine (upstream Cheqqers NOT integrated). "
+    "Occurrence chances, not amplitudes. Toy-engine numbers are NOT paper results."
 )
+
+
+@dataclass(frozen=True, slots=True)
+class LoadedLog:
+    """One condition's log, its records and its summary.
+
+    A small named record rather than a loose tuple, so a figure writer cannot silently
+    swap a label for a summary.
+    """
+
+    label: str
+    path: Path
+    records: Sequence[Mapping[str, Any]]
+    summary: dict[str, Any]
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments."""
     parser = argparse.ArgumentParser(
-        description="Generate plots from experiment JSONL logs.",
+        description="Generate plots from JSONL game logs.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument(
-        "--logs",
-        nargs="+",
-        default=["results/*.jsonl"],
-        help="Experiment JSONL paths or glob patterns.",
+        "--results-dir",
+        default="results",
+        help="Directory to scan for *.jsonl logs.",
     )
     parser.add_argument(
-        "--out",
-        default="results/plots",
-        help="Directory for generated PNGs.",
+        "--log",
+        dest="logs",
+        action="append",
+        default=None,
+        help="Explicit log file. Repeatable. Overrides the directory scan.",
+    )
+    parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="Output directory (default: <results-dir>/plots).",
+    )
+    parser.add_argument(
+        "--games",
+        type=int,
+        default=None,
+        help="Cap games read per condition (oldest first). Use for a quick preview.",
+    )
+    parser.add_argument(
+        "--dpi", type=int, default=150, help="Figure resolution."
+    )
+    parser.add_argument(
+        "--quiet", action="store_true", help="Only print one line per figure."
     )
     return parser.parse_args(argv)
 
 
-def _expand_logs(patterns: Sequence[str]) -> list[Path]:
-    paths: set[Path] = set()
-    for pattern in patterns:
-        matches = glob.glob(pattern)
-        if matches:
-            paths.update(Path(match) for match in matches)
-        elif Path(pattern).is_file():
-            paths.add(Path(pattern))
-    return sorted(paths, key=lambda path: str(path))
+def discover_logs(args: argparse.Namespace) -> list[Path]:
+    """Return the log files to plot, in a stable order.
+
+    Explicit ``--log`` paths win. Otherwise only the four registered baseline
+    conditions and the two registered ablation arms are included. Server-play and
+    browser-acceptance logs live in the same directory but are not experiment samples.
+    Results are sorted by name so repeated runs produce identical figures.
+    """
+    if args.logs:
+        return [Path(entry) for entry in args.logs]
+    results_dir = Path(args.results_dir)
+    if not results_dir.is_dir():
+        return []
+    report_labels = {condition.label for condition in CONDITIONS}
+    report_labels.update(
+        {"ablation-prob-vs-random-obs", "ablation-prob-vs-random-noobs"}
+    )
+    return sorted(
+        path for path in results_dir.glob("*.jsonl") if path.stem in report_labels
+    )
 
 
-def _read_experiment_logs(
-    paths: Sequence[Path],
-) -> tuple[dict[str, list[Mapping[str, Any]]], dict[str, list[str]]]:
-    known_labels = {condition.label for condition in CONDITIONS}
-    records_by_label: dict[str, list[Mapping[str, Any]]] = {}
-    sources_by_label: dict[str, list[str]] = {}
+def load_summaries(paths: Sequence[Path], *, cap: int | None = None) -> list["LoadedLog"]:
+    """Read each log and summarise it.
+
+    Empty logs are skipped with a warning rather than plotted, because an empty axis
+    reads as "zero result" when it actually means "no data".
+    """
+    loaded: list[LoadedLog] = []
     for path in paths:
-        try:
-            lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError as exc:
-            print(f"warning: cannot read {path}: {exc}", file=sys.stderr)
+        records = read_jsonl(path)
+        if cap is not None:
+            records = records[:cap]
+        if not records:
+            print(f"warning: {path} has no records; skipping", file=sys.stderr)
             continue
-        recognized = False
-        for line_number, line in enumerate(lines, 1):
-            if not line.strip():
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError as exc:
-                print(
-                    f"warning: skipping invalid JSON in {path}:{line_number}: {exc}",
-                    file=sys.stderr,
-                )
-                continue
-            if not isinstance(record, dict):
-                continue
-            label = record.get("condition")
-            if label not in known_labels:
-                continue
-            try:
-                _plies(record)
-                _observe_moves(record)
-                _spread_moves(record)
-                summarize([record])
-            except (TypeError, ValueError) as exc:
-                print(
-                    f"warning: skipping invalid experiment record "
-                    f"{path}:{line_number}: {exc}",
-                    file=sys.stderr,
-                )
-                continue
-            recognized = True
-            records_by_label.setdefault(label, []).append(record)
-            source_names = sources_by_label.setdefault(label, [])
-            if path.name not in source_names:
-                source_names.append(path.name)
-        if not recognized:
-            print(f"warning: {path} contains no recognized experiment records; skipping", file=sys.stderr)
-    return records_by_label, sources_by_label
-
-
-def _wilson_errors(rate: Rate) -> tuple[list[float], list[float]]:
-    return [max(0.0, rate.p - rate.low)], [max(0.0, rate.high - rate.p)]
-
-
-def _sample_note(
-    labels: Sequence[str], records_by_label: Mapping[str, Sequence[Mapping[str, Any]]]
-) -> str:
-    return "  |  ".join(
-        f"{label}: n={len(records_by_label[label])}" for label in labels
-    )
-
-
-def _footer(
-    source_names: Sequence[str],
-    command_args: Sequence[str],
-    labels: Sequence[str],
-    records_by_label: Mapping[str, Sequence[Mapping[str, Any]]],
-) -> str:
-    command = "python scripts/make_plots.py"
-    if any(arg == "--logs" or arg.startswith("--logs=") for arg in command_args):
-        command += " --logs " + " ".join(source_names)
-    return (
-        f"source: {', '.join(source_names)}\n"
-        f"command: {command}\n"
-        f"n: {_sample_note(labels, records_by_label)}"
-    )
-
-
-def _add_footer(
-    figure: Any,
-    source_names: Sequence[str],
-    command_args: Sequence[str],
-    labels: Sequence[str],
-    records_by_label: Mapping[str, Sequence[Mapping[str, Any]]],
-) -> None:
-    figure.text(
-        0.01,
-        0.01,
-        _footer(source_names, command_args, labels, records_by_label),
-        ha="left",
-        va="bottom",
-        fontsize=7,
-        color="#555555",
-        wrap=True,
-    )
-
-
-def _png_metadata(command_args: Sequence[str], source_names: Sequence[str]) -> dict[str, str]:
-    invocation = shlex.join(["python", "scripts/make_plots.py", *command_args])
-    sources = ", ".join(source_names)
-    return {
-        "Description": f"command: {invocation}\nsource logs: {sources}",
-        "Source": sources,
-    }
-
-
-def _plot_win_draw(axes: Any, labels: Sequence[str], summaries: Mapping[str, Any]) -> None:
-    metrics = ("win_rate_p0", "win_rate_p1", "draw_rate")
-    names = ("player 0 wins", "player 1 wins", "draws")
-    positions = list(range(len(labels)))
-    width = 0.25
-    for index, (metric, name) in enumerate(zip(metrics, names)):
-        rates: list[Rate] = [summaries[label]["metrics"][metric] for label in labels]
-        points = [rate.p for rate in rates]
-        errors = [
-            [max(0.0, rate.p - rate.low) for rate in rates],
-            [max(0.0, rate.high - rate.p) for rate in rates],
-        ]
-        offsets = [position + (index - 1) * width for position in positions]
-        axes.bar(offsets, points, width=width * 0.9, label=name)
-        axes.errorbar(offsets, points, yerr=errors, fmt="none", ecolor="#333333", capsize=3)
-    axes.set_xticks(positions, labels, rotation=20, ha="right", fontsize=8)
-    axes.set_ylim(0, 1)
-    axes.set_ylabel("rate (0-1)")
-    axes.set_title("Win and draw rates (95% Wilson intervals)")
-    axes.legend(fontsize=8)
-    axes.grid(axis="y", alpha=0.3)
-
-
-def _plot_collapses(axes: Any, labels: Sequence[str], summaries: Mapping[str, Any]) -> None:
-    positions = list(range(len(labels)))
-    incidences = [summaries[label]["metrics"]["collapse_rate"] for label in labels]
-    points = [value.p for value in incidences]
-    errors = [
-        [max(0.0, value.p - value.low) for value in incidences],
-        [max(0.0, value.high - value.p) for value in incidences],
-    ]
-    axes.bar(positions, points, width=0.55, color="#4c72b0", label="games with collapse")
-    axes.errorbar(positions, points, yerr=errors, fmt="none", ecolor="#333333", capsize=3)
-    axes.set_ylabel("collapse incidence (0-1)")
-    axes.set_ylim(0, 1)
-    twin = axes.twinx()
-    means = [summaries[label]["rates"]["mean_collapses"] for label in labels]
-    twin.plot(positions, means, marker="D", color="#c44e52", label="mean collapses/game")
-    twin.set_ylabel("mean collapses per game")
-    axes.set_xticks(positions, labels, rotation=20, ha="right", fontsize=8)
-    axes.set_title("Collapse incidence and mean collapses per game")
-    axes.grid(axis="y", alpha=0.3)
-    handles, names = axes.get_legend_handles_labels()
-    other_handles, other_names = twin.get_legend_handles_labels()
-    axes.legend(handles + other_handles, names + other_names, fontsize=8)
-
-
-def _plot_lengths(
-    axes: Any, labels: Sequence[str], records_by_label: Mapping[str, Sequence[Mapping[str, Any]]]
-) -> None:
-    values = [[_plies(record) for record in records_by_label[label]] for label in labels]
-    positions = list(range(len(labels)))
-    axes.boxplot(values, positions=positions, widths=0.5, showfliers=False)
-    for position, lengths in zip(positions, values):
-        for index, value in enumerate(lengths):
-            jitter = ((index % 7) - 3) / 40.0
-            axes.plot(position + jitter, value, ".", color="#333333", alpha=0.55)
-        if lengths:
-            mean = sum(lengths) / len(lengths)
-            axes.plot(position, mean, marker="D", color="#c44e52")
-    axes.set_xticks(positions, labels, rotation=20, ha="right", fontsize=8)
-    axes.set_ylabel("plies played")
-    axes.set_title("Game-length distribution (box, points, and mean)")
-    axes.grid(axis="y", alpha=0.3)
-
-
-def _plot_move_usage(
-    axes: Any, labels: Sequence[str], records_by_label: Mapping[str, Sequence[Mapping[str, Any]]]
-) -> None:
-    positions = list(range(len(labels)))
-    width = 0.36
-    for offset, (accessor, name, color) in enumerate(
-        ((_observe_moves, "Observe moves/game", "#55a868"),
-         (_spread_moves, "Spread moves/game", "#c44e52"))
-    ):
-        means = [
-            sum(accessor(record) for record in records_by_label[label])
-            / len(records_by_label[label])
-            for label in labels
-        ]
-        axes.bar(
-            [position + (offset - 0.5) * width for position in positions],
-            means,
-            width=width * 0.9,
-            label=name,
-            color=color,
+        label = str(records[0].get("condition") or path.stem)
+        loaded.append(
+            LoadedLog(
+                label=label,
+                path=path,
+                records=records,
+                summary=summarize(records),
+            )
         )
-    axes.set_xticks(positions, labels, rotation=20, ha="right", fontsize=8)
-    axes.set_ylabel("mean moves per game")
-    axes.set_title("Observe and spread move usage per game")
-    axes.legend(fontsize=8)
-    axes.grid(axis="y", alpha=0.3)
-
-
-def _plot_effects(axes: Any, records_by_label: Mapping[str, Sequence[Mapping[str, Any]]]) -> None:
-    contrasts = (
-        ("mcts", "ablation-mcts-vs-random-obs", "ablation-mcts-vs-random-noobs"),
-        ("prob", "ablation-prob-vs-random-obs", "ablation-prob-vs-random-noobs"),
-    )
-    available: list[tuple[str, Mapping[str, Any]]] = []
-    for agent, observed_label, control_label in contrasts:
-        observed = records_by_label.get(observed_label, [])
-        control = records_by_label.get(control_label, [])
-        if not observed or not control:
-            continue
-        result = compare_conditions(
-            observed,
-            control,
-            metrics=(PRIMARY_METRIC,),
-        )["comparisons"][PRIMARY_METRIC]
-        available.append((agent, result))
-    axes.set_ylim(-1, 1)
-    axes.axhline(0, color="#555555", linewidth=1, linestyle="--")
-    axes.set_ylabel(f"difference in {PRIMARY_METRIC} (Observe - no Observe)")
-    axes.set_title("Ablation effect and comparison interval")
-    axes.grid(axis="y", alpha=0.3)
-    if not available:
-        axes.text(
-            0.5,
-            0.75,
-            "No ablation pairs found: needs obs and noobs logs for the same agent.",
-            ha="center",
-            va="center",
-            transform=axes.transAxes,
-            bbox={"facecolor": "white", "edgecolor": "none", "pad": 4},
-        )
-        axes.set_xticks([])
-        return
-
-    positions = list(range(len(available)))
-    for position, (agent, result) in zip(positions, available):
-        estimate = result["difference"]
-        low = result["diff_low"]
-        high = result["diff_high"]
-        axes.errorbar(
-            position,
-            estimate,
-            yerr=[[estimate - low], [high - estimate]],
-            fmt="o",
-            capsize=4,
-        )
-    axes.set_xticks(
-        positions,
-        [f"{agent}\n{result['method']}" for agent, result in available],
-    )
+    return loaded
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Entry point. Returns a process exit code."""
     command_args = list(argv) if argv is not None else sys.argv[1:]
     args = parse_args(argv)
-    paths = _expand_logs(args.logs)
+    out_dir = Path(args.out_dir) if args.out_dir else Path(args.results_dir) / "plots"
+
+    paths = discover_logs(args)
     if not paths:
-        print("No experiment JSONL logs found; nothing to plot.", file=sys.stderr)
-        return 0
-    records_by_label, sources_by_label = _read_experiment_logs(paths)
-    labels = sorted(records_by_label)
-    if not labels:
-        print("No experiment JSONL records found; nothing to plot.", file=sys.stderr)
-        return 0
+        print(
+            f"error: no JSONL logs found in {args.results_dir!r}. Run "
+            "`python scripts/run_baseline.py` first.",
+            file=sys.stderr,
+        )
+        return 2
+
+    loaded = load_summaries(paths, cap=args.games)
+    if not loaded:
+        print("error: every log was empty; nothing to plot", file=sys.stderr)
+        return 2
 
     try:
         import matplotlib
 
-        matplotlib.use("Agg")
+        matplotlib.use("Agg")  # headless: no display on CI or in a notebook re-run
         import matplotlib.pyplot as plt
-    except ImportError:
-        print("matplotlib is required to generate plots.", file=sys.stderr)
-        return 1
-
-    summaries = {label: summarize(records_by_label[label]) for label in labels}
-    pilot = any(len(records_by_label[label]) < MIN_GAMES_JUSTIFIED for label in labels)
-    if pilot:
-        low_conditions = [
-            f"{label} (n={len(records_by_label[label])})"
-            for label in labels
-            if len(records_by_label[label]) < MIN_GAMES_JUSTIFIED
-        ]
+    except ImportError as exc:
         print(
-            f"warning: below MIN_GAMES_JUSTIFIED={MIN_GAMES_JUSTIFIED}: "
-            + ", ".join(low_conditions),
+            f"error: matplotlib is required for plotting ({exc}). "
+            "Install it with `pip install -r requirements.txt`.",
             file=sys.stderr,
         )
+        return 1
 
-    source_names = sorted({name for names in sources_by_label.values() for name in names})
-    out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    writers = (
-        ("win_draw_rates.png", _plot_win_draw),
-        ("collapse_frequency.png", _plot_collapses),
-        ("game_length.png", _plot_lengths),
-        ("quantum_move_usage.png", _plot_move_usage),
-    )
-    for filename, writer in writers:
-        figure, axes = plt.subplots(figsize=(9, 5.5))
-        try:
-            writer(axes, labels, summaries if writer in (_plot_win_draw, _plot_collapses) else records_by_label)
-            title = filename.removesuffix(".png").replace("_", " ")
-            figure.suptitle(f"{title}{' - PILOT' if pilot else ''}")
-            _add_footer(figure, source_names, command_args, labels, records_by_label)
-            figure.subplots_adjust(left=0.1, right=0.96, top=0.86, bottom=0.36)
-            figure.savefig(
-                out_dir / filename,
-                dpi=140,
-                metadata=_png_metadata(command_args, source_names),
+    labels = [entry.label for entry in loaded]
+    summaries = [entry.summary for entry in loaded]
+
+    if not args.quiet:
+        print(f"engine        : {PROVENANCE_FOOTER}")
+        print(f"logs          : {len(loaded)}")
+        for entry in loaded:
+            print(f"  {entry.path} -> {entry.label} (n={entry.summary['n_games']})")
+        total = sum(s["n_games"] for s in summaries)
+        print(f"games plotted : {total}")
+        if any(s["n_games"] < MIN_GAMES_JUSTIFIED for s in summaries):
+            print(
+                f"WARNING       : at least one condition is below the brief's "
+                f"{MIN_GAMES_JUSTIFIED}-per-condition target. Label these figures pilot."
             )
+        print(f"output        : {out_dir}")
+        print("")
+
+    writers = (
+        ("win_draw_rates", plot_win_draw_rates),
+        ("collapse_frequency", plot_collapse_frequency),
+        ("game_length", plot_game_length),
+        ("quantum_move_usage", plot_quantum_move_usage),
+    )
+
+    written: list[Path] = []
+    for name, writer in writers:
+        figure, axes = plt.subplots(figsize=(8.5, 5.0))
+        try:
+            writer(axes, labels, summaries, loaded)
+            figure.suptitle(f"{name.replace('_', ' ')} -- QuriousMinds", fontsize=11)
+            footer = "\n".join(
+                (
+                    PROVENANCE_FOOTER,
+                    "source log(s): "
+                    + ", ".join(entry.path.name for entry in loaded),
+                    "command: "
+                    + shlex.join(["python", "scripts/make_plots.py", *command_args]),
+                )
+            )
+            figure.text(
+                0.02,
+                0.01,
+                footer,
+                ha="left",
+                va="bottom",
+                fontsize=6,
+                color="#555555",
+                wrap=True,
+            )
+            # Explicit margins rather than tight_layout: the rotated condition labels
+            # and the per-figure caption below the axes make tight_layout unable to
+            # find a valid solution and it silently warns instead of laying out.
+            figure.subplots_adjust(left=0.11, right=0.98, top=0.88, bottom=0.38)
+            target = out_dir / f"{name}.png"
+            figure.savefig(target, dpi=args.dpi)
+            written.append(target)
+            if args.quiet:
+                print(f"wrote {target}")
         finally:
             plt.close(figure)
 
-    figure, axes = plt.subplots(figsize=(8, 5.5))
-    try:
-        _plot_effects(axes, records_by_label)
-        figure.suptitle(f"ablation effects{' - PILOT' if pilot else ''}")
-        _add_footer(figure, source_names, command_args, labels, records_by_label)
-        figure.subplots_adjust(left=0.13, right=0.96, top=0.86, bottom=0.36)
-        figure.savefig(
-            out_dir / "ablation_effects.png",
-            dpi=140,
-            metadata=_png_metadata(command_args, source_names),
-        )
-    finally:
-        plt.close(figure)
+    if not args.quiet:
+        print(f"figures       : {len(written)}")
+        for path in written:
+            print(f"  {path}")
     return 0
+
+
+# ---------------------------------------------------------------------------
+# Figures
+# ---------------------------------------------------------------------------
+
+
+def _sample_size_note(summaries: Sequence[Mapping[str, Any]]) -> str:
+    """The "n = ..." annotation every figure carries."""
+    return "  |  ".join(
+        f"{label}: n={summary['n_games']}" for label, summary in zip(
+            [str(s.get("condition")) for s in summaries], summaries
+        )
+    )
+
+
+def _interval_bars(
+    axes: Any,
+    labels: Sequence[str],
+    summaries: Sequence[Mapping[str, Any]],
+    metric: str,
+) -> tuple[list[float], list[float], list[float]]:
+    """Point estimates plus Wilson interval bounds for one metric, per condition."""
+    points: list[float] = []
+    lows: list[float] = []
+    highs: list[float] = []
+    for summary in summaries:
+        rate: Rate = summary["metrics"][metric]
+        if not rate.defined:
+            points.append(0.0)
+            lows.append(0.0)
+            highs.append(0.0)
+            continue
+        points.append(rate.point)
+        lows.append(rate.low)
+        highs.append(rate.high)
+    return points, lows, highs
+
+
+def plot_win_draw_rates(
+    axes: Any,
+    labels: Sequence[str],
+    summaries: Sequence[Mapping[str, Any]],
+    loaded: Sequence[LoadedLog],
+) -> None:
+    """Win rate for each player and the draw rate, with Wilson intervals.
+
+    Brief section 12 asks for win and draw rates with Wilson intervals across
+    conditions; this is that figure. Players are drawn side by side per condition so a
+    second-player advantage is visible rather than hidden inside a single "win rate".
+    """
+    metrics = ("win_rate_p0", "win_rate_p1", "draw_rate")
+    titles = ("player 0 wins", "player 1 wins", "draws")
+    width = 0.26
+    positions = list(range(len(labels)))
+
+    for offset, (metric, title) in enumerate(zip(metrics, titles)):
+        points, lows, highs = _interval_bars(axes, labels, summaries, metric)
+        shifted = [position + (offset - 1) * width for position in positions]
+        axes.bar(shifted, points, width=width * 0.9, label=title, zorder=2)
+        axes.errorbar(
+            shifted,
+            points,
+            yerr=[
+                [max(0.0, p - lo) for p, lo in zip(points, lows)],
+                [max(0.0, hi - p) for p, hi in zip(points, highs)],
+            ],
+            fmt="none",
+            ecolor="#333333",
+            elinewidth=1.0,
+            capsize=3,
+            zorder=3,
+        )
+
+    axes.set_xticks(positions)
+    axes.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
+    axes.set_ylabel("rate (0-1)")
+    axes.set_ylim(0.0, 1.0)
+    axes.set_title("Win and draw rates with 95% Wilson intervals")
+    axes.grid(axis="y", alpha=0.3, zorder=0)
+    axes.legend(fontsize=8, loc="upper right")
+    axes.text(
+        0.0,
+        -0.34,
+        f"n = {_sample_size_note(summaries)}",
+        transform=axes.transAxes,
+        fontsize=7,
+        color="#555555",
+    )
+
+
+def plot_collapse_frequency(
+    axes: Any,
+    labels: Sequence[str],
+    summaries: Sequence[Mapping[str, Any]],
+    loaded: Sequence[LoadedLog],
+) -> None:
+    """Fraction of games containing at least one collapse, with Wilson intervals.
+
+    Distinct from mean collapses per game: a rate answers "how often does measurement
+    happen at all", which is the sub-question the brief actually asks.
+    """
+    points, lows, highs = _interval_bars(axes, labels, summaries, "collapse_rate")
+    positions = list(range(len(labels)))
+    axes.bar(positions, points, width=0.55, color="#4c72b0", zorder=2)
+    axes.errorbar(
+        positions,
+        points,
+        yerr=[
+            [max(0.0, p - lo) for p, lo in zip(points, lows)],
+            [max(0.0, hi - p) for p, hi in zip(points, highs)],
+        ],
+        fmt="none",
+        ecolor="#333333",
+        elinewidth=1.0,
+        capsize=3,
+        zorder=3,
+    )
+    for position, summary in zip(positions, summaries):
+        axes.text(
+            position,
+            -0.09,
+            f"{summary['rates']['mean_collapses']:.2f}/game",
+            ha="center",
+            va="top",
+            fontsize=7,
+            color="#555555",
+        )
+
+    axes.set_xticks(positions)
+    axes.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
+    axes.set_ylabel("fraction of games with >= 1 collapse")
+    axes.set_ylim(0.0, 1.0)
+    axes.set_title("Collapse frequency with 95% Wilson intervals")
+    axes.grid(axis="y", alpha=0.3, zorder=0)
+    axes.text(
+        0.0,
+        -0.34,
+        f"n = {_sample_size_note(summaries)}  (label below bar = mean collapses per game)",
+        transform=axes.transAxes,
+        fontsize=7,
+        color="#555555",
+    )
+
+
+def plot_game_length(
+    axes: Any,
+    labels: Sequence[str],
+    summaries: Sequence[Mapping[str, Any]],
+    loaded: Sequence[LoadedLog],
+) -> None:
+    """Game-length distribution per condition.
+
+    Box plot plus jittered individual points. The points matter: a box plot of a
+    dozen games implies a distribution the sample cannot support, and the brief warns
+    against overpowered-looking claims from underpowered batches.
+    """
+    data = [
+        [float(record.get("length", 0) or 0) for record in entry.records]
+        for entry in loaded
+    ]
+    positions = list(range(len(labels)))
+    axes.boxplot(data, positions=positions, widths=0.5, showfliers=False, zorder=2)
+
+    for position, lengths in zip(positions, data):
+        # Deterministic horizontal jitter: no RNG, so figures are byte-stable.
+        for index, value in enumerate(lengths):
+            spread = ((index % 7) - 3) / 40.0
+            axes.plot(
+                position + spread,
+                value,
+                marker=".",
+                markersize=3,
+                color="#333333",
+                alpha=0.5,
+                zorder=3,
+            )
+
+    means = [summary["rates"]["mean_length"] for summary in summaries]
+    axes.plot(positions, means, marker="D", linestyle="none", color="#c44e52", zorder=4)
+    for position, summary in zip(positions, summaries):
+        axes.text(
+            position,
+            -0.09,
+            f"mean {summary['rates']['mean_length']:.1f}\nsd {summary['rates']['stdev_length']:.1f}",
+            ha="center",
+            va="top",
+            fontsize=7,
+            color="#555555",
+        )
+
+    axes.set_xticks(positions)
+    axes.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
+    axes.set_ylabel("plies played")
+    axes.set_title("Game-length distribution (box = IQR, dots = games, diamond = mean)")
+    axes.grid(axis="y", alpha=0.3, zorder=0)
+    axes.text(
+        0.0,
+        -0.34,
+        f"n = {_sample_size_note(summaries)}",
+        transform=axes.transAxes,
+        fontsize=7,
+        color="#555555",
+    )
+
+
+def plot_quantum_move_usage(
+    axes: Any,
+    labels: Sequence[str],
+    summaries: Sequence[Mapping[str, Any]],
+    loaded: Sequence[LoadedLog],
+) -> None:
+    """Grouped bars show Observe/spread moves per game on one axes.
+
+    The caption also reports the fraction of games using each action at all. Both
+    summaries matter, and they can disagree if a few games drive a high mean.
+    """
+    figure_width = 0.35
+    positions = list(range(len(labels)))
+
+    observe_means = [summary["rates"]["mean_observe_moves"] for summary in summaries]
+    spread_means = [summary["rates"]["mean_spread_moves"] for summary in summaries]
+
+    axes.bar(
+        [p - figure_width / 2 for p in positions],
+        observe_means,
+        width=figure_width * 0.9,
+        label="Observe moves / game",
+        color="#55a868",
+        zorder=2,
+    )
+    axes.bar(
+        [p + figure_width / 2 for p in positions],
+        spread_means,
+        width=figure_width * 0.9,
+        label="spread moves / game",
+        color="#c44e52",
+        zorder=2,
+    )
+
+    axes.set_xticks(positions)
+    axes.set_xticklabels(labels, rotation=20, ha="right", fontsize=8)
+    axes.set_ylabel("mean moves per game")
+    axes.set_title("Quantum-move usage (Person C condition is Observe)")
+    axes.grid(axis="y", alpha=0.3, zorder=0)
+    axes.legend(fontsize=8, loc="upper right")
+    axes.text(
+        0.0,
+        -0.34,
+        f"n = {_sample_size_note(summaries)}  "
+        "(games using each action at all: "
+        + ", ".join(
+            f"{label} observe {summary['metrics']['observe_usage'].point:.2f} "
+            f"spread {summary['metrics']['spread_usage'].point:.2f}"
+            for label, summary in zip(labels, summaries)
+        )
+        + ")",
+        transform=axes.transAxes,
+        fontsize=7,
+        color="#555555",
+    )
 
 
 if __name__ == "__main__":

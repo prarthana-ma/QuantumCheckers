@@ -19,7 +19,7 @@ Design:
 
 Owner: **Person B -- baseline agents and harness**. This is the headless harness that
 brief section 16 Gate 3 requires, and the JSONL writer whose format Person D and
-Person E depend on.
+P4 depend on.
 
 Determinism contract
 --------------------
