@@ -6,8 +6,10 @@ import pytest
 
 from qcheckers.experiment.stats import (
     METRICS,
+    compare_conditions,
     compare_paired,
     compare_rates,
+    format_comparison,
     paired_outcomes,
     rate,
     summarize,
@@ -180,3 +182,43 @@ def test_summarize_empty_input_and_metrics_registry() -> None:
     assert set(summary["metrics"]) | set(summary["rates"]) == set(METRICS)
     assert all(metric.n == 0 for metric in summary["metrics"].values())
     assert summary["rates"]["stdev_length"] == 0.0
+
+
+def test_compare_conditions_uses_paired_comparison_for_matching_seeds() -> None:
+    arm_a = [_record(1, 0), _record(2, None)]
+    arm_b = [_record(2, None), _record(1, 1)]
+
+    result = compare_conditions(arm_a, arm_b, metrics=("win_rate_p0",))
+    comparison = result["comparisons"]["win_rate_p0"]
+
+    assert comparison["method"] == "paired"
+    assert comparison["difference"] == pytest.approx(0.5)
+
+
+def test_compare_conditions_uses_unpaired_comparison_for_unmatched_seeds() -> None:
+    arm_a = [_record(1, 0), _record(2, 1)]
+    arm_b = [_record(3, 0), _record(4, None)]
+
+    result = compare_conditions(arm_a, arm_b, metrics=("draw_rate",))
+
+    assert result["comparisons"]["draw_rate"]["method"] == "unpaired"
+
+
+def test_compare_conditions_identical_arms_have_zero_difference_in_interval() -> None:
+    arm = [_record(1, 0), _record(2, None)]
+
+    comparison = compare_conditions(arm, arm)["comparisons"]["win_rate_p0"]
+
+    assert comparison["difference"] == 0.0
+    assert comparison["diff_low"] <= 0.0 <= comparison["diff_high"]
+
+
+def test_format_comparison_contains_both_labels() -> None:
+    comparison = compare_conditions(
+        [_record(1, 0)], [_record(2, 1)], metrics=("win_rate_p0",)
+    )["comparisons"]["win_rate_p0"]
+
+    formatted = format_comparison("condition A", "condition B", comparison)
+
+    assert "condition A" in formatted
+    assert "condition B" in formatted

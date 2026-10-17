@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from typing import Any, Mapping, Protocol, Sequence
 
 
+Z_95 = 1.959963984540054
+
+
 class GameLike(Protocol):
     """Fields consumed from a game record by the statistics helpers."""
 
@@ -41,6 +44,16 @@ class Rate:
     low: float
     high: float
     n: int
+
+    @property
+    def point(self) -> float:
+        """Alias for the point estimate used by the ablation script."""
+        return self.p
+
+    @property
+    def defined(self) -> bool:
+        """Whether this rate has observations."""
+        return self.n > 0
 
 
 def _validate_z(z: float) -> None:
@@ -304,12 +317,88 @@ def summarize(
     }
 
 
+def compare_conditions(
+    a_records: Sequence[GameLike],
+    b_records: Sequence[GameLike],
+    *,
+    metrics: Sequence[str] = ("win_rate_p0", "draw_rate", "collapse_rate"),
+    z: float = Z_95,
+) -> dict[str, Any]:
+    """Summarize two conditions and compare each requested binary rate."""
+    summary_a = summarize(a_records, z)
+    summary_b = summarize(b_records, z)
+
+    def has_unique_seeds(records: Sequence[GameLike]) -> bool:
+        seeds: set[Any] = set()
+        for record in records:
+            try:
+                seed = _field(record, "seed")
+                if seed is None or seed in seeds:
+                    return False
+                seeds.add(seed)
+            except (TypeError, ValueError):
+                return False
+        return bool(records)
+
+    paired = (
+        has_unique_seeds(a_records)
+        and has_unique_seeds(b_records)
+        and {_field(record, "seed") for record in a_records}
+        == {_field(record, "seed") for record in b_records}
+    )
+    comparisons: dict[str, Any] = {}
+    for metric in metrics:
+        rate_a: Rate = summary_a["metrics"][metric]
+        rate_b: Rate = summary_b["metrics"][metric]
+        if paired:
+            outcomes_a, outcomes_b = paired_outcomes(a_records, b_records, metric)
+            result = compare_paired(outcomes_a, outcomes_b, z)
+            method = "paired"
+        else:
+            metric_index = METRICS.index(metric)
+            successes_a = sum(_binary_outcome(record, metric_index) for record in a_records)
+            successes_b = sum(_binary_outcome(record, metric_index) for record in b_records)
+            result = compare_rates(
+                successes_a, rate_a.n, successes_b, rate_b.n, z
+            )
+            method = "unpaired"
+        comparisons[metric] = {
+            "metric": metric,
+            "a": rate_a,
+            "b": rate_b,
+            "difference": result["difference"],
+            "diff_low": result["lower"],
+            "diff_high": result["upper"],
+            "excludes_zero": result["excludes_zero"],
+            "method": method,
+        }
+    return {
+        "a": summary_a,
+        "b": summary_b,
+        "comparisons": comparisons,
+    }
+
+
+def format_comparison(
+    label_a: str, label_b: str, comparison: Mapping[str, Any]
+) -> str:
+    """Format a metric's difference and interval without significance claims."""
+    return (
+        f"{comparison['metric']}: {label_a} - {label_b} "
+        f"{comparison['difference']:+.3f} "
+        f"[{comparison['diff_low']:+.3f}, {comparison['diff_high']:+.3f}]"
+    )
+
+
 __all__ = [
     "GameLike",
     "METRICS",
     "Rate",
+    "Z_95",
+    "compare_conditions",
     "compare_paired",
     "compare_rates",
+    "format_comparison",
     "paired_outcomes",
     "rate",
     "summarize",
