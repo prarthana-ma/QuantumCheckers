@@ -1,6 +1,7 @@
 """Focused checks for the pure-Python experiment statistics helpers."""
 
 import math
+import json
 
 import pytest
 
@@ -140,7 +141,7 @@ def test_paired_outcomes_rejects_duplicate_seeds() -> None:
 def _record(
     seed: int,
     winner: int | None,
-    plies: int = 10,
+    length: int = 10,
     collapses: int = 0,
     observe_moves: int = 0,
     spread_moves: int = 0,
@@ -148,7 +149,7 @@ def _record(
     return {
         "seed": seed,
         "winner": winner,
-        "plies": plies,
+        "length": length,
         "collapses": collapses,
         "observe_moves": observe_moves,
         "spread_moves": spread_moves,
@@ -172,8 +173,25 @@ def test_summarize_keeps_draws_in_win_denominator() -> None:
 
 
 def test_summarize_sample_standard_deviation_uses_n_minus_one() -> None:
-    summary = summarize([_record(1, 0, plies=8), _record(2, 1, plies=12)], 1.96)
+    summary = summarize([_record(1, 0, length=8), _record(2, 1, length=12)], 1.96)
     assert summary["rates"]["stdev_length"] == pytest.approx(2.0 * math.sqrt(2.0))
+
+
+def test_summarize_parsed_old_jsonl_record() -> None:
+    record = json.loads(
+        '{"game_id":"sample-7","seed":7,"winner":1,'
+        '"termination":"no_legal_moves","length":8,"collapses":1,'
+        '"observe_moves":2,"spread_moves":3,"turns":[]}'
+    )
+
+    summary = summarize([record])
+
+    assert summary["n_games"] == 1
+    assert summary["metrics"]["win_rate_p1"].p == pytest.approx(1.0)
+    assert summary["rates"]["mean_length"] == pytest.approx(8.0)
+    assert summary["rates"]["mean_collapses"] == pytest.approx(1.0)
+    assert summary["rates"]["mean_observe_moves"] == pytest.approx(2.0)
+    assert summary["rates"]["mean_spread_moves"] == pytest.approx(3.0)
 
 
 def test_summarize_empty_input_and_metrics_registry() -> None:
