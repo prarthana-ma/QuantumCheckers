@@ -1,6 +1,6 @@
 /* QuriousMinds replay viewer -- minimal static styling.
  *
- * Owner: P4 (replay viewer and reproducibility package).
+ * Owner: Person E (replay viewer and reproducibility package).
  *
  * Plain CSS, no build step, no framework, no web fonts: the viewer must work from a
  * `file://` URL on a laptop with no network. Colours are chosen to stay readable in
@@ -42,42 +42,20 @@
   }
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
   margin: 0;
   padding: 0 1.25rem 3rem;
   background: var(--bg);
   color: var(--ink);
-  font:
-    15px/1.5 ui-sans-serif,
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
-.masthead {
-  max-width: 62rem;
-  margin: 0 auto;
-  padding: 1.5rem 0 0.5rem;
-}
-h1 {
-  font-size: 1.5rem;
-  margin: 0 0 0.25rem;
-  letter-spacing: -0.01em;
-}
-h2 {
-  font-size: 1.05rem;
-  margin: 0 0 0.6rem;
-}
-.subtitle {
-  margin: 0 0 0.5rem;
-  color: var(--ink-soft);
-}
+.masthead { max-width: 62rem; margin: 0 auto; padding: 1.5rem 0 0.5rem; }
+h1 { font-size: 1.5rem; margin: 0 0 0.25rem; letter-spacing: -0.01em; }
+h2 { font-size: 1.05rem; margin: 0 0 0.6rem; }
+.subtitle { margin: 0 0 0.5rem; color: var(--ink-soft); }
 .provenance {
   margin: 0;
   padding: 0.6rem 0.75rem;
@@ -87,14 +65,9 @@ h2 {
   font-size: 0.86rem;
   color: var(--ink-soft);
 }
-.provenance strong {
-  color: var(--ink);
-}
+.provenance strong { color: var(--ink); }
 
-main {
-  max-width: 62rem;
-  margin: 0 auto;
-}
+main { max-width: 62rem; margin: 0 auto; }
 
 section {
   margin-top: 1.5rem;
@@ -104,14 +77,9 @@ section {
   border-radius: var(--radius);
 }
 
-.hidden {
-  display: none;
-}
+.hidden { display: none; }
 
-code,
-pre {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 pre {
   overflow-x: auto;
   padding: 0.6rem 0.7rem;
@@ -129,31 +97,13 @@ pre {
   align-items: center;
   gap: 0.6rem;
 }
-#load-form label {
-  font-weight: 600;
-  font-size: 0.86rem;
-}
-.hint {
-  margin: 0.6rem 0 0;
-  font-size: 0.84rem;
-  color: var(--ink-soft);
-}
-.hint.error {
-  color: var(--collapse);
-  font-weight: 600;
-}
-.sample-hint {
-  margin-top: 0.9rem;
-  font-size: 0.86rem;
-}
-.sample-hint summary {
-  cursor: pointer;
-  color: var(--ink-soft);
-}
+#load-form label { font-weight: 600; font-size: 0.86rem; }
+.hint { margin: 0.6rem 0 0; font-size: 0.84rem; color: var(--ink-soft); }
+.hint.error { color: var(--collapse); font-weight: 600; }
+.sample-hint { margin-top: 0.9rem; font-size: 0.86rem; }
+.sample-hint summary { cursor: pointer; color: var(--ink-soft); }
 
-button,
-select,
-input[type="file"] {
+button, select, input[type="file"] {
   font: inherit;
   font-size: 0.88rem;
   color: var(--ink);
@@ -162,20 +112,10 @@ input[type="file"] {
   border-radius: var(--radius);
   padding: 0.35rem 0.7rem;
 }
-button {
-  cursor: pointer;
-}
-button:hover:not(:disabled) {
-  border-color: var(--ink-soft);
-}
-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-#play {
-  min-width: 4.2rem;
-  font-weight: 600;
-}
+button { cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--ink-soft); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+#play { min-width: 4.2rem; font-weight: 600; }
 
 /* --- metadata ----------------------------------------------------------- */
 
@@ -185,20 +125,14 @@ button:disabled {
   gap: 0.6rem 1.2rem;
   margin: 0;
 }
-.meta div {
-  min-width: 0;
-}
+.meta div { min-width: 0; }
 .meta dt {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--ink-soft);
 }
-.meta dd {
-  margin: 0.1rem 0 0;
-  font-weight: 600;
-  word-break: break-word;
-}
+.meta dd { margin: 0.1rem 0 0; font-weight: 600; word-break: break-word; }
 
 .amplitude-note {
   margin: 0.9rem 0 0;
@@ -230,29 +164,16 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 3px;
 }
-.chip-p0 {
-  background: var(--p0);
-}
-.chip-p1 {
-  background: var(--p1);
-}
+.chip-p0 { background: var(--p0); }
+.chip-p1 { background: var(--p1); }
 .chip-uncertain {
   background: repeating-linear-gradient(
-    45deg,
-    var(--uncertain),
-    var(--uncertain) 3px,
-    transparent 3px,
-    transparent 6px
+    45deg, var(--uncertain), var(--uncertain) 3px, transparent 3px, transparent 6px
   );
 }
-.chip-collapse {
-  border-color: var(--collapse);
-  border-width: 2px;
-}
+.chip-collapse { border-color: var(--collapse); border-width: 2px; }
 
-.board-frame {
-  overflow-x: auto;
-}
+.board-frame { overflow-x: auto; }
 .board {
   display: grid;
   gap: 2px;
@@ -270,28 +191,16 @@ button:disabled {
   color: #fff;
   min-width: 0;
 }
-.cell.light {
-  background: var(--light-square);
-}
-.cell.dark {
-  background: var(--dark-square);
-}
-.cell.playable.light {
-  box-shadow: inset 0 0 0 1px var(--line);
-}
-.cell.owner-0 {
-  background: var(--p0);
-}
-.cell.owner-1 {
-  background: var(--p1);
-}
+.cell.light { background: var(--light-square); }
+.cell.dark { background: var(--dark-square); }
+.cell.playable.light { box-shadow: inset 0 0 0 1px var(--line); }
+.cell.owner-0 { background: var(--p0); }
+.cell.owner-1 { background: var(--p1); }
 /* Diagonal hatching marks a square that is only probably occupied. Shape, not just
    colour, so the uncertainty is legible without relying on hue. */
 .cell.uncertain {
   background-image: repeating-linear-gradient(
-    45deg,
-    rgba(255, 255, 255, 0.55) 0 3px,
-    rgba(0, 0, 0, 0.28) 3px 6px
+    45deg, rgba(255, 255, 255, 0.55) 0 3px, rgba(0, 0, 0, 0.28) 3px 6px
   );
 }
 .cell.collapse::after {
@@ -301,10 +210,7 @@ button:disabled {
   border: 3px solid var(--collapse);
   border-radius: 3px;
 }
-.cell .chance {
-  opacity: 0.92;
-  font-variant-numeric: tabular-nums;
-}
+.cell .chance { opacity: 0.92; font-variant-numeric: tabular-nums; }
 
 /* --- timeline ----------------------------------------------------------- */
 
@@ -326,36 +232,22 @@ button:disabled {
   font-size: 0.84rem;
   cursor: pointer;
 }
-.timeline li:last-child {
-  border-bottom: 0;
-}
-.timeline li:hover {
-  background: var(--bg);
-}
+.timeline li:last-child { border-bottom: 0; }
+.timeline li:hover { background: var(--bg); }
 .timeline li[aria-current="true"] {
   background: var(--bg);
   font-weight: 700;
   box-shadow: inset 3px 0 0 var(--p0);
 }
-.turn-index {
-  color: var(--ink-soft);
-  font-variant-numeric: tabular-nums;
-  min-width: 2.2rem;
-}
+.turn-index { color: var(--ink-soft); font-variant-numeric: tabular-nums; min-width: 2.2rem; }
 .turn-player {
   min-width: 3.4rem;
   font-weight: 700;
   font-size: 0.78rem;
 }
-.turn-player.p0 {
-  color: var(--p0);
-}
-.turn-player.p1 {
-  color: var(--p1);
-}
-.turn-action {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
+.turn-player.p0 { color: var(--p0); }
+.turn-player.p1 { color: var(--p1); }
+.turn-action { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .turn-flag {
   margin-left: auto;
   font-size: 0.74rem;
@@ -365,39 +257,18 @@ button:disabled {
 
 /* --- controls ----------------------------------------------------------- */
 
-#controls {
-  padding-top: 0.8rem;
-}
+#controls { padding-top: 0.8rem; }
 .controls-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
 }
-.status-row {
-  margin-top: 0.7rem;
-  font-size: 0.84rem;
-  color: var(--ink-soft);
-}
-.speed-label,
-.check-label {
-  font-size: 0.84rem;
-  color: var(--ink-soft);
-}
-.check-label {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  margin-left: auto;
-}
-#turn-readout {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-progress {
-  flex: 1 1 8rem;
-  height: 0.5rem;
-}
+.status-row { margin-top: 0.7rem; font-size: 0.84rem; color: var(--ink-soft); }
+.speed-label, .check-label { font-size: 0.84rem; color: var(--ink-soft); }
+.check-label { display: flex; align-items: center; gap: 0.3rem; margin-left: auto; }
+#turn-readout { font-variant-numeric: tabular-nums; font-weight: 600; }
+progress { flex: 1 1 8rem; height: 0.5rem; }
 
 /* --- event detail ------------------------------------------------------- */
 
@@ -413,10 +284,7 @@ progress {
   letter-spacing: 0.05em;
   color: var(--ink-soft);
 }
-.fact dd {
-  margin: 0.1rem 0 0;
-  word-break: break-word;
-}
+.fact dd { margin: 0.1rem 0 0; word-break: break-word; }
 .collapse-block {
   margin-top: 0.9rem;
   padding: 0.6rem 0.7rem;
@@ -425,24 +293,14 @@ progress {
   border-radius: 0 var(--radius) var(--radius) 0;
   font-size: 0.85rem;
 }
-.collapse-block h3 {
-  margin: 0 0 0.35rem;
-  font-size: 0.9rem;
-}
-.collapse-block table {
-  border-collapse: collapse;
-  font-size: 0.82rem;
-}
-.collapse-block th,
-.collapse-block td {
+.collapse-block h3 { margin: 0 0 0.35rem; font-size: 0.9rem; }
+.collapse-block table { border-collapse: collapse; font-size: 0.82rem; }
+.collapse-block th, .collapse-block td {
   padding: 0.15rem 0.6rem 0.15rem 0;
   text-align: left;
   font-variant-numeric: tabular-nums;
 }
-.sampled {
-  font-weight: 700;
-  color: var(--collapse);
-}
+.sampled { font-weight: 700; color: var(--collapse); }
 
 footer {
   max-width: 62rem;
@@ -450,15 +308,9 @@ footer {
   font-size: 0.8rem;
   color: var(--ink-soft);
 }
-footer a {
-  color: inherit;
-}
+footer a { color: inherit; }
 
 @media (max-width: 30rem) {
-  .check-label {
-    margin-left: 0;
-  }
-  .board {
-    width: 100%;
-  }
+  .check-label { margin-left: 0; }
+  .board { width: 100%; }
 }

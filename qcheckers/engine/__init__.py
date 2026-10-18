@@ -1,4 +1,3 @@
-"""Engine package: protocol (interfaces) + P5's concrete engine."""
 """Game engine layer.
 
 Person A owns ``protocol.py``, ``toy.py`` and ``adapter.py``. Nothing outside this

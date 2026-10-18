@@ -1,6 +1,6 @@
 """Game record -> replay payload for the static viewer.
 
-Owner: **P4 -- replay viewer and reproducibility package**.
+Owner: **Person E -- replay viewer and reproducibility package**.
 
 This is a **pure function**: same record in, same payload out, no file or network I/O,
 no randomness. That matters because the viewer is a debugging tool for the log format,
@@ -18,7 +18,7 @@ Phase and amplitude
 -------------------
 The payload carries a top-level ``amplitude_display: false`` with an explanatory note.
 The brief requires that if the published game's state is probability-only, the viewer
-says so plainly rather than implying quantum phases exist. P4E must flip this only
+says so plainly rather than implying quantum phases exist. Person E must flip this only
 after verifying against the paper and upstream code (Gate 5). Right now it is false
 because the toy engine stores chance weights, not amplitudes.
 

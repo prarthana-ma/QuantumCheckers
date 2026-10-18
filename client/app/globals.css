@@ -1,0 +1,365 @@
+@import "tailwindcss";
+
+@theme {
+  /* Arcade face: page headings and nothing else. It is far too wide for body copy. */
+  --font-arcade: var(--font-press-start-2p), var(--font-chakra), monospace;
+  --font-display: var(--font-chakra), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* ---------------------------------------------------------------------
+     Palette: zinc neutrals, ONE accent.
+
+     The accent is the quantum mechanic's own colour — a measured violet.
+     Seat 0 wears the accent; seat 1 wears a near-white neutral. That keeps
+     the two sides unmistakable without a second hue, so nothing on screen
+     competes with the accent for "this is the interesting thing".
+     --------------------------------------------------------------------- */
+  --color-background: #09090b;
+  --color-foreground: #fafafa;
+
+  --color-card: #111113;
+  --color-card-foreground: #fafafa;
+
+  --color-popover: #18181b;
+  --color-popover-foreground: #fafafa;
+
+  --color-primary: #a78bfa;
+  --color-primary-foreground: #09090b;
+
+  --color-secondary: #1c1c1f;
+  --color-secondary-foreground: #fafafa;
+
+  --color-muted: #18181b;
+  --color-muted-foreground: #a1a1aa;
+
+  --color-accent: #1c1c1f;
+  --color-accent-foreground: #fafafa;
+
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #09090b;
+
+  --color-border: #27272a;
+  --color-input: #27272a;
+  --color-ring: #a78bfa;
+
+  /* Seat 0 = accent. Seat 1 = the brightest neutral. Value + hue, no second hue. */
+  --color-seat-0: #e4e4e7;
+  --color-seat-1: #a78bfa;
+
+  /* Board-internal aliases, so square markup reads in domain terms. */
+  --color-well: #111113;
+  --color-well-idle: #18181b;
+  --color-edge: #27272a;
+  --color-edge-soft: #1c1c1f;
+  --color-ink: #fafafa;
+  --color-ink-dim: #a1a1aa;
+  --color-ink-faint: #71717a;
+  --color-ember: #a78bfa;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  --animate-pulse-signal: pulse-signal 1.6s ease-in-out infinite;
+  --animate-turn-sweep: turn-sweep 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-press: press 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    /* The button variants reference the primary as an HSL triple. */
+    --primary: 258 90% 82%;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--color-background);
+  }
+
+  /* Page titles wear the arcade face. Scoped to `h1`/`h2` only, and in the base
+     layer, so any heading that sets `font-display` in the utilities layer (the
+     board's own instrument headings) keeps its face. Arcade is far too wide for
+     body copy, which is why this stops at `h2`. */
+  h1,
+  h2 {
+    font-family: var(--font-arcade);
+    line-height: 1.7;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Every control gets the same physical press. Consistent, and it makes a
+     whole screen of small buttons feel like one instrument. */
+  button:not(:disabled):active {
+    transform: scale(0.97);
+  }
+
+  button:not(:disabled) {
+    transition-property: transform, opacity, background-color, border-color, color;
+    transition-duration: 140ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* Turn 1px hairline grid over the whole console. Static — a moving backdrop
+     would be motion that says nothing about the game state. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(to right, rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+}
+
+@layer utilities {
+  /* The one eyebrow style on the page, used sparingly: at most one per three
+     sections, so it still means "look here" when it appears. */
+  .label-inst {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    font-size: 0.625rem;
+    line-height: 1;
+    color: var(--color-ink-faint);
+  }
+
+  .tnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion. Every keyframe animates only `transform` or `opacity`, and every
+   one of them is tied to a state change the player can name:
+
+     turn-sweep     the turn changed
+     piece-slide    a piece moved
+     piece-arc      a capture landed
+     piece-shimmer  a piece split
+     collapse-flick a spread collapsed (staggered per ghost square)
+     link-pulse     two sites of one piece are entangled
+     urgency        a coherence counter reached 1 tick
+     modal-in       a dialog opened
+
+   `prefers-reduced-motion` collapses all of them to instant cuts below.
+   --------------------------------------------------------------------------- */
+
+@keyframes pulse-signal {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes turn-sweep {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes piece-slide {
+  from {
+    transform: translate3d(var(--from-x), var(--from-y), 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes piece-arc {
+  from {
+    transform: translate3d(var(--from-x), var(--from-y), 0);
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes piece-lift {
+  0% {
+    transform: translateY(0);
+  }
+  45% {
+    transform: translateY(var(--lift));
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes piece-shimmer {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes collapse-flick {
+  0% {
+    opacity: 0.15;
+    transform: scale(0.96);
+  }
+  30% {
+    opacity: 1;
+  }
+  60% {
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes link-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@keyframes urgency {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes modal-in {
+  from {
+    transform: translateY(8px) scale(0.99);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+/* The square an armed action will land on. It breathes so the target is
+   findable in one glance across a busy board — and it only ever runs on the
+   one square the player has to tap, never as ambient board motion. */
+@keyframes target-glow {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-turn-sweep {
+  animation: turn-sweep 460ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-piece-slide {
+  animation: piece-slide 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-piece-arc {
+  animation: piece-arc 380ms cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+.animate-piece-lift {
+  animation: piece-lift 380ms cubic-bezier(0.34, 1.3, 0.64, 1) both;
+}
+.animate-piece-shimmer {
+  animation: piece-shimmer 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-collapse-flick {
+  animation: collapse-flick 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-link-pulse {
+  animation: link-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.animate-urgency {
+  animation: urgency 900ms cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+.animate-modal-in {
+  animation: modal-in 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-target-glow {
+  animation: target-glow 1.1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Reduced motion: every juice animation becomes an instant cut. Nothing loops,
+   nothing travels. The board still reports the same state, just without travel. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .animate-link-pulse,
+  .animate-urgency,
+  .animate-pulse-signal,
+  .animate-target-glow {
+    animation: none !important;
+  }
+
+  .animate-link-pulse {
+    opacity: 0.5;
+  }
+
+  .animate-urgency {
+    opacity: 1;
+  }
+
+  /* Stopped, but still the brightest thing in its cell — the square has to stay
+     findable without the pulse. */
+  .animate-target-glow {
+    opacity: 0.9;
+  }
+
+  button:not(:disabled):active {
+    transform: none;
+  }
+}

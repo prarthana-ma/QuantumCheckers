@@ -584,12 +584,7 @@ class Room:
         seat = self.seat_number_of(player_id)
         if seat is None:
             raise ProtocolError("this connection holds no seat", "not_seated")
-        # In local mode, the creator holds both seats (same player_id), so allow
-        # moves for whichever player's turn it is. The engine's legal_actions
-        # already filters to the current turn's moves.
-        if self.mode == "local" and player_id == self.creator_id:
-            pass  # allow
-        elif not self._may_move(seat):
+        if not self._may_move(seat):
             raise ProtocolError("it is not your turn", "not_your_turn")
 
         action = resolve_action(self.engine, self.state, message)

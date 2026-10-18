@@ -1,145 +1,116 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>QuriousMinds &mdash; Quantum Checkers replay viewer</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <header class="masthead">
-      <h1>Quantum Checkers replay viewer</h1>
-      <p class="subtitle">
-        Minimal static step-through for a logged game. No build step, no server,
-        no network.
-      </p>
-      <p class="provenance" id="provenance">
-        <strong>Toy engine.</strong> The upstream Cheqqers engine is
-        <em>not</em> integrated (Gate 2 open). Nothing shown here is a
-        reproduced paper result.
-      </p>
-    </header>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuriousMinds &mdash; Quantum Checkers replay viewer</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="masthead">
+  <h1>Quantum Checkers replay viewer</h1>
+  <p class="subtitle">
+    Minimal static step-through for a logged game. No build step, no server, no network.
+  </p>
+  <p class="provenance" id="provenance">
+    <strong>Toy engine.</strong> The upstream Cheqqers engine is <em>not</em> integrated
+    (Gate 2 open). Nothing shown here is a reproduced paper result.
+  </p>
+</header>
 
-    <main>
-      <section class="loader" aria-labelledby="loader-heading">
-        <h2 id="loader-heading">Load a replay</h2>
-        <p>
-          Accepts a replay payload written by
-          <code>python scripts/run_baseline.py --replay &lt;path&gt;</code>
-          (<code>.json</code>), or a raw JSONL log (<code>.jsonl</code>) &mdash;
-          the first record in the file is used.
-        </p>
-        <form id="load-form">
-          <label for="file-input">Replay payload or JSONL log</label>
-          <input
-            type="file"
-            id="file-input"
-            accept=".json,.jsonl,application/json"
-          />
-          <button type="submit" id="load-button">Load</button>
-        </form>
-        <p class="hint" id="load-status" role="status" aria-live="polite">
-          No payload loaded yet.
-        </p>
-        <details class="sample-hint">
-          <summary>How to produce one</summary>
-          <pre><code>python scripts/run_baseline.py --condition quantum-observe-vs-random -n 12 \
+<main>
+  <section class="loader" aria-labelledby="loader-heading">
+    <h2 id="loader-heading">Load a replay</h2>
+    <p>
+      Accepts a replay payload written by
+      <code>python scripts/run_baseline.py --replay &lt;path&gt;</code>
+      (<code>.json</code>), or a raw JSONL log (<code>.jsonl</code>) &mdash; the first
+      record in the file is used.
+    </p>
+    <form id="load-form">
+      <label for="file-input">Replay payload or JSONL log</label>
+      <input type="file" id="file-input" accept=".json,.jsonl,application/json">
+      <button type="submit" id="load-button">Load</button>
+    </form>
+    <p class="hint" id="load-status" role="status" aria-live="polite">
+      No payload loaded yet.
+    </p>
+    <details class="sample-hint">
+      <summary>How to produce one</summary>
+      <pre><code>python scripts/run_baseline.py --condition quantum-observe-vs-random -n 12 \
     --replay results/replay_sample.json</code></pre>
-          <p>
-            To load a <code>.jsonl</code> log directly, drop
-            <code>results/quantum-observe-vs-random.jsonl</code> here.
-          </p>
-        </details>
-      </section>
-
-      <section id="game-panel" class="hidden" aria-labelledby="game-heading">
-        <h2 id="game-heading">Game</h2>
-        <dl class="meta" id="game-meta"></dl>
-        <p class="amplitude-note" id="amplitude-note"></p>
-      </section>
-
-      <section
-        id="board-section"
-        class="hidden"
-        aria-labelledby="board-heading"
-      >
-        <h2 id="board-heading">Board</h2>
-        <p class="legend">
-          <span class="chip chip-p0"></span> player 0
-          <span class="chip chip-p1"></span> player 1
-          <span class="chip chip-uncertain"></span> uncertain square
-          <span class="chip chip-collapse"></span> collapse on this turn
-        </p>
-        <div class="board-frame">
-          <div
-            id="board"
-            class="board"
-            role="img"
-            aria-label="Game board"
-          ></div>
-        </div>
-      </section>
-
-      <section
-        id="timeline-section"
-        class="hidden"
-        aria-labelledby="timeline-heading"
-      >
-        <h2 id="timeline-heading">Turn timeline</h2>
-        <ol id="timeline" class="timeline"></ol>
-      </section>
-
-      <section id="controls" class="hidden" aria-label="Playback controls">
-        <div class="controls-row">
-          <button type="button" id="first" title="First turn (Home)">
-            |&lt;
-          </button>
-          <button type="button" id="prev" title="Previous turn (Left arrow)">
-            &lt;
-          </button>
-          <button type="button" id="play" title="Play / pause (Space)">
-            Play
-          </button>
-          <button type="button" id="next" title="Next turn (Right arrow)">
-            &gt;
-          </button>
-          <button type="button" id="last" title="Last turn (End)">&gt;|</button>
-          <label class="speed-label" for="speed">Speed</label>
-          <select id="speed">
-            <option value="1200">0.5&times;</option>
-            <option value="600" selected>1&times;</option>
-            <option value="300">2&times;</option>
-            <option value="120">5&times;</option>
-          </select>
-          <label class="check-label">
-            <input type="checkbox" id="collapse-only" />
-            Collapse turns only
-          </label>
-        </div>
-        <div class="controls-row status-row">
-          <span id="turn-readout">turn 0 / 0</span>
-          <progress id="progress" max="1" value="0"></progress>
-        </div>
-      </section>
-
-      <section id="event-panel" class="hidden" aria-labelledby="event-heading">
-        <h2 id="event-heading">Selected turn</h2>
-        <div id="event-detail"></div>
-      </section>
-    </main>
-
-    <footer>
       <p>
-        QuriousMinds &mdash; reproduction-plus-extension study of &ldquo;Quantum
-        Checkers: The Development and Analysis of a Quantum Combinatorial
-        Game&rdquo; (Raat et&nbsp;al., IEEE CoG 2025, DOI
-        <a href="https://doi.org/10.1109/COG64752.2025.11114278"
-          >10.1109/COG64752.2025.11114278</a
-        >). Viewer owned by Person&nbsp;E. See
-        <code>docs/quantum-checkers-project.md</code>.
+        To load a <code>.jsonl</code> log directly, drop
+        <code>results/quantum-observe-vs-random.jsonl</code> here.
       </p>
-    </footer>
+    </details>
+  </section>
 
-    <script src="viewer.js"></script>
-  </body>
+  <section id="game-panel" class="hidden" aria-labelledby="game-heading">
+    <h2 id="game-heading">Game</h2>
+    <dl class="meta" id="game-meta"></dl>
+    <p class="amplitude-note" id="amplitude-note"></p>
+  </section>
+
+  <section id="board-section" class="hidden" aria-labelledby="board-heading">
+    <h2 id="board-heading">Board</h2>
+    <p class="legend">
+      <span class="chip chip-p0"></span> player 0
+      <span class="chip chip-p1"></span> player 1
+      <span class="chip chip-uncertain"></span> uncertain square
+      <span class="chip chip-collapse"></span> collapse on this turn
+    </p>
+    <div class="board-frame">
+      <div id="board" class="board" role="img" aria-label="Game board"></div>
+    </div>
+  </section>
+
+  <section id="timeline-section" class="hidden" aria-labelledby="timeline-heading">
+    <h2 id="timeline-heading">Turn timeline</h2>
+    <ol id="timeline" class="timeline"></ol>
+  </section>
+
+  <section id="controls" class="hidden" aria-label="Playback controls">
+    <div class="controls-row">
+      <button type="button" id="first" title="First turn (Home)">|&lt;</button>
+      <button type="button" id="prev" title="Previous turn (Left arrow)">&lt;</button>
+      <button type="button" id="play" title="Play / pause (Space)">Play</button>
+      <button type="button" id="next" title="Next turn (Right arrow)">&gt;</button>
+      <button type="button" id="last" title="Last turn (End)">&gt;|</button>
+      <label class="speed-label" for="speed">Speed</label>
+      <select id="speed">
+        <option value="1200">0.5&times;</option>
+        <option value="600" selected>1&times;</option>
+        <option value="300">2&times;</option>
+        <option value="120">5&times;</option>
+      </select>
+      <label class="check-label">
+        <input type="checkbox" id="collapse-only">
+        Collapse turns only
+      </label>
+    </div>
+    <div class="controls-row status-row">
+      <span id="turn-readout">turn 0 / 0</span>
+      <progress id="progress" max="1" value="0"></progress>
+    </div>
+  </section>
+
+  <section id="event-panel" class="hidden" aria-labelledby="event-heading">
+    <h2 id="event-heading">Selected turn</h2>
+    <div id="event-detail"></div>
+  </section>
+</main>
+
+<footer>
+  <p>
+    QuriousMinds &mdash; reproduction-plus-extension study of
+    &ldquo;Quantum Checkers: The Development and Analysis of a Quantum Combinatorial
+    Game&rdquo; (Raat et&nbsp;al., IEEE CoG 2025,
+    DOI <a href="https://doi.org/10.1109/COG64752.2025.11114278">10.1109/COG64752.2025.11114278</a>).
+    Viewer owned by Person&nbsp;E. See <code>docs/quantum-checkers-project.md</code>.
+  </p>
+</footer>
+
+<script src="viewer.js"></script>
+</body>
 </html>

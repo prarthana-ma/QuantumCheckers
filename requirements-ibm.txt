@@ -1,0 +1,20 @@
+# Optional IBM Quantum execution for python -m qcheckers.quantum and for the
+# live hardware-collapse path in server/quantum_measure.py.
+-r requirements.txt
+
+# Upper bound is deliberate and load-bearing.
+#
+# server/quantum_measure.py calls `SamplerV2`, which qiskit-ibm-runtime 0.50.0
+# deprecated in favour of `executor_sampler.Sampler` (announced for removal no
+# sooner than ~December 2026). The code here is written and mock-tested against
+# SamplerV2, so allowing 0.50 installs a version that warns on every collapse.
+#
+# Until the sampler is migrated, keep the ceiling at the last non-deprecated
+# release. When you migrate:
+#   1. swap the import to `from qiskit_ibm_runtime.executor_sampler import Sampler`,
+#   2. re-run tests/test_hardware_collapse.py (660 lines, mocked boundary),
+#   3. THEN relax this pin.
+#
+# Do not hardcode a backend name: ibm_brisbane, ibm_kyiv and ibm_torino are all
+# retired. Discovery is runtime-only via least_busy().
+qiskit-ibm-runtime>=0.42,<0.50

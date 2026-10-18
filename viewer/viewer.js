@@ -1,6 +1,6 @@
 /* QuriousMinds replay viewer -- plain ES2018, no framework, no build step.
  *
- * Owner: P4 (replay viewer and reproducibility package).
+ * Owner: Person E (replay viewer and reproducibility package).
  *
  * Design constraints, all deliberate:
  *
@@ -38,29 +38,13 @@
 
   function cacheElements() {
     [
-      "load-form",
-      "file-input",
-      "load-status",
-      "provenance",
-      "game-panel",
-      "game-meta",
-      "amplitude-note",
-      "board-section",
-      "board",
-      "timeline-section",
-      "timeline",
-      "controls",
-      "first",
-      "prev",
-      "play",
-      "next",
-      "last",
-      "speed",
-      "collapse-only",
-      "turn-readout",
-      "progress",
-      "event-panel",
-      "event-detail",
+      "load-form", "file-input", "load-status", "provenance",
+      "game-panel", "game-meta", "amplitude-note",
+      "board-section", "board",
+      "timeline-section", "timeline",
+      "controls", "first", "prev", "play", "next", "last", "speed",
+      "collapse-only", "turn-readout", "progress",
+      "event-panel", "event-detail",
     ].forEach(function (id) {
       els[id] = $(id);
     });
@@ -122,32 +106,17 @@
     };
     switch (kind) {
       case "move":
-        return (
-          "move " +
-          action.piece_id +
-          " " +
-          square(action.origin) +
-          "->" +
-          square(action.target)
-        );
+        return "move " + action.piece_id + " " + square(action.origin) + "->" + square(action.target);
       case "capture":
         return (
-          "capture " +
-          action.piece_id +
-          " " +
-          square(action.origin) +
-          " over " +
-          square(action.jumped) +
-          "->" +
-          square(action.target)
+          "capture " + action.piece_id + " " + square(action.origin) +
+          " over " + square(action.jumped) + "->" + square(action.target)
         );
       case "spread":
         var sites = Array.isArray(action.sites)
-          ? action.sites
-              .map(function (site) {
-                return square(site) + "@" + chancePercent(site[1]);
-              })
-              .join(" ")
+          ? action.sites.map(function (site) {
+              return square(site) + "@" + chancePercent(site[1]);
+            }).join(" ")
           : "?";
         return "spread " + action.piece_id + " " + sites;
       case "rejoin":
@@ -200,12 +169,9 @@
         throw new Error("first JSONL record is not valid JSON");
       }
       setStatus(
-        "Loaded the first of " +
-          lines.length +
-          " JSONL records from " +
-          fileName +
+        "Loaded the first of " + lines.length + " JSONL records from " + fileName +
           ". Export a replay payload for the turn-level view.",
-        false,
+        false
       );
       // A raw game record has `turns`, not `frames`; build frames from it here so the
       // viewer still works on a raw log.
@@ -220,10 +186,7 @@
   function rawRecordToPayload(record) {
     var size = 4;
     var finalBoard = record.final_board || {};
-    if (
-      typeof finalBoard.board_size === "number" &&
-      finalBoard.board_size > 0
-    ) {
+    if (typeof finalBoard.board_size === "number" && finalBoard.board_size > 0) {
       size = finalBoard.board_size;
     }
 
@@ -356,16 +319,11 @@
       (header.toy_engine
         ? "<em>not integrated</em> (Gate 2 open)."
         : "<em>unknown engine</em> (" + (header.engine || "unnamed") + ").") +
-      " Loaded from " +
-      fileName +
+      " Loaded from " + fileName +
       ". Nothing here is a reproduced paper result.";
 
     [
-      "game-panel",
-      "board-section",
-      "timeline-section",
-      "controls",
-      "event-panel",
+      "game-panel", "board-section", "timeline-section", "controls", "event-panel",
     ].forEach(function (id) {
       els[id].classList.remove("hidden");
     });
@@ -374,12 +332,9 @@
     renderTimeline();
     show(0);
     setStatus(
-      "Loaded " +
-        (header.game_id || "payload") +
-        " (" +
-        (payload.frames || []).length +
-        " turns).",
-      false,
+      "Loaded " + (header.game_id || "payload") + " (" +
+        (payload.frames || []).length + " turns).",
+      false
     );
   }
 
@@ -466,8 +421,7 @@
           node.appendChild(make("span", "chance", chancePercent(topChance)));
           if (cell.uncertain) {
             node.classList.add("uncertain");
-            node.title =
-              "player " + top + " here with chance " + chancePercent(topChance);
+            node.title = "player " + top + " here with chance " + chancePercent(topChance);
           }
         }
         if (frame && frame.collapsed && cell.occupied) {
@@ -475,15 +429,8 @@
         }
         node.setAttribute(
           "aria-label",
-          "row " +
-            row +
-            " column " +
-            col +
-            ", player " +
-            top +
-            " " +
-            chancePercent(topChance) +
-            " likely",
+          "row " + row + " column " + col + ", player " + top + " " +
+            chancePercent(topChance) + " likely"
         );
         board.appendChild(node);
       }
@@ -500,24 +447,16 @@
       var item = make("li");
       item.setAttribute("data-position", position);
       item.appendChild(make("span", "turn-index", "t" + frame.ply));
-      var who = make(
-        "span",
-        "turn-player p" + frame.player,
-        playerLabel(frame.player),
-      );
+      var who = make("span", "turn-player p" + frame.player, playerLabel(frame.player));
       item.appendChild(who);
-      item.appendChild(
-        make("span", "turn-action", describeAction(frame.action)),
-      );
+      item.appendChild(make("span", "turn-action", describeAction(frame.action)));
       if (frame.collapsed) {
         var causes = (frame.events || [])
           .map(function (event) {
             return event.cause;
           })
           .join(", ");
-        item.appendChild(
-          make("span", "turn-flag", "COLLAPSE (" + causes + ")"),
-        );
+        item.appendChild(make("span", "turn-flag", "COLLAPSE (" + causes + ")"));
       }
       item.addEventListener("click", function () {
         stop();
@@ -555,15 +494,8 @@
     renderEventDetail(frame);
 
     els["turn-readout"].textContent =
-      "turn " +
-      (state.index + 1) +
-      " / " +
-      list.length +
-      "  (ply " +
-      frame.ply +
-      ", " +
-      playerLabel(frame.player) +
-      ")";
+      "turn " + (state.index + 1) + " / " + list.length +
+      "  (ply " + frame.ply + ", " + playerLabel(frame.player) + ")";
     els["progress"].max = list.length;
     els["progress"].value = state.index + 1;
 
@@ -592,9 +524,7 @@
     ].forEach(function (pair) {
       var wrapper = make("div");
       wrapper.appendChild(make("dt", null, pair[0]));
-      wrapper.appendChild(
-        make("dd", null, pair[1] === undefined ? "unknown" : pair[1]),
-      );
+      wrapper.appendChild(make("dd", null, pair[1] === undefined ? "unknown" : pair[1]));
       facts.appendChild(wrapper);
     });
     host.appendChild(facts);
@@ -603,7 +533,7 @@
 
     if (!frame.collapsed) {
       host.appendChild(
-        make("p", "amplitude-note", "No collapse on this turn."),
+        make("p", "amplitude-note", "No collapse on this turn.")
       );
       return;
     }
@@ -611,23 +541,19 @@
     (frame.events || []).forEach(function (event) {
       var block = make("div", "collapse-block");
       block.appendChild(
-        make("h3", null, "Collapse -- cause: " + (event.cause || "?")),
+        make("h3", null, "Collapse -- cause: " + (event.cause || "?"))
       );
       block.appendChild(
         make(
           "p",
           null,
-          event.piece_id +
-            " was uncertain over " +
-            (event.chances || []).length +
+          event.piece_id + " was uncertain over " + (event.chances || []).length +
             " square(s). The engine's chance rule sampled " +
             (Array.isArray(event.sampled)
               ? "(" + event.sampled[0] + "," + event.sampled[1] + ")"
               : "?") +
-            " with probability " +
-            chancePercent(event.probability) +
-            ".",
-        ),
+            " with probability " + chancePercent(event.probability) + "."
+        )
       );
 
       var table = document.createElement("table");
@@ -642,11 +568,7 @@
           Array.isArray(event.sampled) &&
           chance[0] === event.sampled[0] &&
           chance[1] === event.sampled[1];
-        var squareCell = make(
-          "td",
-          sampledHere ? "sampled" : null,
-          "(" + chance[0] + "," + chance[1] + ")",
-        );
+        var squareCell = make("td", sampledHere ? "sampled" : null, "(" + chance[0] + "," + chance[1] + ")");
         if (sampledHere) {
           squareCell.appendChild(document.createTextNode(" <- sampled"));
         }
@@ -732,20 +654,10 @@
 
   function wireControls() {
     els["load-form"].addEventListener("submit", handleLoad);
-    els.first.addEventListener("click", function () {
-      stop();
-      show(0);
-    });
-    els.last.addEventListener("click", function () {
-      stop();
-      show(frames().length - 1);
-    });
-    els.prev.addEventListener("click", function () {
-      step(-1);
-    });
-    els.next.addEventListener("click", function () {
-      step(1);
-    });
+    els.first.addEventListener("click", function () { stop(); show(0); });
+    els.last.addEventListener("click", function () { stop(); show(frames().length - 1); });
+    els.prev.addEventListener("click", function () { step(-1); });
+    els.next.addEventListener("click", function () { step(1); });
     els.play.addEventListener("click", toggle);
 
     els.speed.addEventListener("change", function () {

@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="580" viewBox="0 0 1200 580" role="img" aria-labelledby="title desc">
+  <title id="title">QCheckers research and game execution workflow</title>
+  <desc id="desc">The experiment path initializes a fixed seed, runs an agent match, records JSON Lines, replays each record for byte identity, and generates statistics and plots. The game path sends browser actions to the server, validates and applies them through the engine, then broadcasts updated state.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0 10 5 0 10z" fill="#a78bfa"/></marker>
+    <style>.bg{fill:#09090b}.box{fill:#17171c;stroke:#8b5cf6;stroke-width:2;rx:14}.title{fill:#f4f4f5;font:600 18px 'Segoe UI',sans-serif}.body{fill:#c4c4ce;font:15px 'Segoe UI',sans-serif}.tag{fill:#a78bfa;font:600 13px 'Segoe UI',sans-serif;letter-spacing:1.2px}.line{fill:none;stroke:#a78bfa;stroke-width:3;marker-end:url(#arrow)}</style>
+  </defs>
+  <rect class="bg" width="1200" height="580"/>
+  <text x="48" y="48" class="tag">RESEARCH WORKFLOW</text>
+  <rect class="box" x="55" y="95" width="190" height="115"/>
+  <text x="78" y="137" class="title">1 · Fix inputs</text><text x="78" y="170" class="body">Seed · condition · agent</text>
+  <rect class="box" x="285" y="95" width="190" height="115"/>
+  <text x="308" y="137" class="title">2 · Play game</text><text x="308" y="170" class="body">Engine + agent decisions</text>
+  <rect class="box" x="515" y="95" width="190" height="115"/>
+  <text x="538" y="137" class="title">3 · Record</text><text x="538" y="170" class="body">Frozen JSONL record</text>
+  <rect class="box" x="745" y="95" width="190" height="115"/>
+  <text x="768" y="137" class="title">4 · Replay</text><text x="768" y="170" class="body">Require byte identity</text>
+  <rect class="box" x="975" y="95" width="180" height="115"/>
+  <text x="998" y="137" class="title">5 · Analyze</text><text x="998" y="170" class="body">Intervals + figures</text>
+  <path class="line" d="M245 152 H275"/><path class="line" d="M475 152 H505"/><path class="line" d="M705 152 H735"/><path class="line" d="M935 152 H965"/>
+  <text x="48" y="290" class="tag">LIVE GAME WORKFLOW</text>
+  <rect class="box" x="140" y="340" width="250" height="125"/>
+  <text x="168" y="385" class="title">Browser client</text><text x="168" y="420" class="body">User selects and sends action</text>
+  <rect class="box" x="475" y="340" width="250" height="125"/>
+  <text x="503" y="385" class="title">API + game server</text><text x="503" y="420" class="body">Check protocol and seat</text>
+  <rect class="box" x="810" y="340" width="250" height="125"/>
+  <text x="838" y="385" class="title">Shared game engine</text><text x="838" y="420" class="body">Validate, apply, update state</text>
+  <path class="line" d="M390 380 H465"/><path class="line" d="M725 380 H800"/>
+  <path class="line" d="M810 435 H735"/><path class="line" d="M475 435 H400"/>
+  <text x="394" y="485" class="body">state update returns over WebSocket</text>
+</svg>

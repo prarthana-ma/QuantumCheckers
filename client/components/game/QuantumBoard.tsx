@@ -1,13 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  ActionMsg,
-  BoardMsg,
-  ClientMessage,
-  GameState,
-  Square,
-} from "@/types/game";
+import type { ActionMsg, BoardMsg, ClientMessage, GameState, Square } from "@/types/game";
 import { BoardSquare, EMPTY_ROLE, type SquareRole } from "./BoardSquare";
 import {
   collapseFlickerSquares,
@@ -16,19 +10,18 @@ import {
   type BoardMotion,
   type PieceTransition,
 } from "./motion";
-import { colLabel, sameSquare, sqKey, squareName } from "./board-model";
+import {
+  colLabel,
+  sameSquare,
+  sqKey,
+  squareName,
+} from "./board-model";
+
+
 
 import {
-  actionMessage,
-  availableModes,
-  boardClick,
-  boardTargets,
-  splitShortcut,
-  MODE_HINT,
-  MODE_LABEL,
-  selectedActions,
-  pieceCanActAt,
-  type Selection,
+  actionMessage, availableModes, boardClick, boardTargets, splitShortcut, MODE_HINT, MODE_LABEL,
+  selectedActions, pieceCanActAt, type Selection,
   selectionsAt,
 } from "./board-interaction";
 export type { Selection } from "./board-interaction";
@@ -81,10 +74,7 @@ export function QuantumBoard({
     if (!node) return;
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        const side = Math.min(
-          entry.contentRect.width,
-          entry.contentRect.height,
-        );
+        const side = Math.min(entry.contentRect.width, entry.contentRect.height);
         if (side > 0) setFrameSize(side);
       }
     });
@@ -133,11 +123,7 @@ export function QuantumBoard({
   // than a strobe.
   const flicker = useMemo(() => {
     const event = state.last_event;
-    if (!reveal || !event)
-      return {
-        flicker: new Map<string, number>(),
-        kept: null as string | null,
-      };
+    if (!reveal || !event) return { flicker: new Map<string, number>(), kept: null as string | null };
     const ordered = collapseFlickerSquares(
       event.chances.map(([sq, w]) => [sq, w] as [Square, number]),
       reveal.after ?? [0, 0],
@@ -154,21 +140,12 @@ export function QuantumBoard({
   const lastTap = useRef<{ square: Square; time: number } | null>(null);
   const handleSelect = useCallback(
     (square: Square, pointerTap: boolean) => {
-      if (!interactive) {
-        lastTap.current = null;
-        return;
-      }
+      if (!interactive) { lastTap.current = null; return; }
       const now = performance.now();
       const previous = lastTap.current;
-      const twice =
-        pointerTap &&
-        previous &&
-        sameSquare(previous.square, square) &&
-        now - previous.time < 350;
+      const twice = pointerTap && previous && sameSquare(previous.square, square) && now - previous.time < 350;
       lastTap.current = pointerTap && !twice ? { square, time: now } : null;
-      const result =
-        (twice ? splitShortcut(state, selection, square) : null) ??
-        boardClick(state, selection, square);
+      const result = (twice ? splitShortcut(state, selection, square) : null) ?? boardClick(state, selection, square);
       if (result.kind === "commit") {
         lastTap.current = null;
         send(result.message);
@@ -193,206 +170,145 @@ export function QuantumBoard({
 
   return (
     <div className="flex h-[min(calc(100vw+6rem),42rem)] min-h-0 w-full shrink-0 flex-col gap-2 lg:h-auto lg:flex-1">
+    <div
+      ref={frameRef}
+      className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
+    >
       <div
-        ref={frameRef}
-        className="relative flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden"
+        className="relative shrink-0"
+        style={{ width: board, height: board }}
       >
         <div
-          className="relative shrink-0"
-          style={{ width: board, height: board }}
+          className="pointer-events-none absolute top-0 left-0 flex flex-col text-[9px] font-medium text-ink-faint"
+          style={{ width: gutter, paddingTop: pad, paddingLeft: 2 }}
+          aria-hidden
         >
-          <div
-            className="pointer-events-none absolute top-0 left-0 flex flex-col text-[9px] font-medium text-ink-faint"
-            style={{ width: gutter, paddingTop: pad, paddingLeft: 2 }}
-            aria-hidden
-          >
-            {coords.ranks.map((rank, i) => (
-              <div
-                key={rank}
-                className="tnum grid place-items-center"
-                style={{ height: cell, marginBottom: i < size - 1 ? gap : 0 }}
-              >
-                {rank}
-              </div>
+          {coords.ranks.map((rank, i) => (
+            <div
+              key={rank}
+              className="tnum grid place-items-center"
+              style={{ height: cell, marginBottom: i < size - 1 ? gap : 0 }}
+            >
+              {rank}
+            </div>
+          ))}
+        </div>
+
+        <div
+          className="pointer-events-none absolute bottom-0 left-0 flex text-[9px] font-medium text-ink-faint"
+          style={{ paddingLeft: pad, paddingBottom: 2 }}
+          aria-hidden
+        >
+          {coords.files.map((file, i) => (
+            <div
+              key={file}
+              className="grid place-items-center"
+              style={{ width: cell, marginRight: i < size - 1 ? gap : 0 }}
+            >
+              {file}
+            </div>
+          ))}
+        </div>
+
+        <div
+          role="grid"
+          aria-label={`Quantum checkers board, ${size} by ${size}`}
+          className="absolute"
+          style={{
+            top: pad,
+            left: pad,
+            display: "grid",
+            gridTemplateColumns: `repeat(${size}, ${cell}px)`,
+            gridTemplateRows: `repeat(${size}, ${cell}px)`,
+            gap: `${gap}px`,
+          }}
+        >
+          {Array.from({ length: size * size }, (_, index) => {
+            const row = Math.floor(index / size);
+            const col = index % size;
+            const square: Square = [row, col];
+            const key = sqKey(square);
+            const role = roles.get(key) ?? EMPTY_ROLE;
+
+            // The transition that lands on this square, if any piece moved here.
+            const transition = transitionForSquare(state.board, motion, square);
+
+            const isKept = flicker.kept === key;
+            const flickerDelay = flicker.flicker.get(key);
+            const revealState: "flicker" | "kept" | null = isKept
+              ? "kept"
+              : flickerDelay !== undefined
+                ? "flicker"
+                : null;
+
+            const pieceHere = pieceAtSquare(state, square);
+            const entangled = !!pieceHere && !!motion?.entangled.has(pieceHere.piece_id);
+
+            return (
+              <BoardSquare
+                key={`${key}-${revealNonce}`}
+                state={state}
+                row={row}
+                col={col}
+                role={role}
+                selected={!!selection && (pieceHere?.piece_id === selection.piece_id || sameSquare(selection.splitTarget, square))}
+                transition={transition}
+                entangled={entangled}
+                reveal={revealState}
+                revealDelay={flickerDelay ?? 0}
+                coherence={coherence[key] ?? null}
+                coherentMax={coherenceMax}
+                onSelect={handleSelect}
+                cell={cell}
+                interactive={interactive}
+                onHover={() => undefined}
+              />
+            );
+          })}
+        </div>
+
+      </div>
+    </div>
+    <div data-board-controls className="h-24 shrink-0 overflow-hidden lg:h-14 rounded-lg border border-edge bg-card px-3 py-2" aria-live="polite">
+      {!selection ? (
+        <p className="flex h-full items-center justify-center text-center text-sm text-ink-dim">
+          {interactive ? (state.board.level > 0 ? "Tap to move · Double-tap a piece to split." : "Tap a piece, then tap a highlighted square.") : state.quantum_pending ? "Measuring on hardware…" : "Waiting for the next move."}
+        </p>
+      ) : (
+        <div className="flex h-full flex-col justify-center gap-1">
+          <div className="flex min-h-10 shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
+            <span className="text-sm font-semibold text-primary">{squareName(selection.origin)}</span>
+            {selectionsAt(state, selection.origin).length > 1 && selectionsAt(state, selection.origin).map((option) => (
+              <button key={option.piece_id} type="button" disabled={!interactive} aria-pressed={option.piece_id === selection.piece_id}
+                onClick={() => onSelect(option)} className="min-h-10 shrink-0 rounded-md border border-edge px-2 text-xs text-ink-dim">{option.piece_id}</button>
             ))}
-          </div>
-
-          <div
-            className="pointer-events-none absolute bottom-0 left-0 flex text-[9px] font-medium text-ink-faint"
-            style={{ paddingLeft: pad, paddingBottom: 2 }}
-            aria-hidden
-          >
-            {coords.files.map((file, i) => (
-              <div
-                key={file}
-                className="grid place-items-center"
-                style={{ width: cell, marginRight: i < size - 1 ? gap : 0 }}
-              >
-                {file}
-              </div>
+            {availableModes(state, selection).map((mode) => (
+              <button
+                key={mode} type="button" disabled={!interactive}
+                aria-pressed={selection.mode === mode}
+                onClick={() => onSelect({ origin: selection.origin, piece_id: selection.piece_id, mode })}
+                className={`min-h-10 rounded-md border px-3 py-2 text-sm disabled:opacity-40 ${selection.mode === mode ? "border-primary bg-primary/20 text-primary" : "border-edge text-ink-dim hover:border-primary"}`}
+              >{MODE_LABEL[mode]}</button>
             ))}
+            {(selection.mode === "observe" || (selection.mode === "spread" && selectedActions(state, selection).length === 1)) && (
+              <button
+                type="button" disabled={!interactive || selectedActions(state, selection).length === 0}
+                className="min-h-10 shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+                onClick={() => {
+                  const action = selectedActions(state, selection)[0];
+                  if (interactive && action) { send(actionMessage(action)); onSelect(null); }
+                }}
+              >{selection.mode === "spread" ? "Confirm split" : "Measure piece"}</button>
+            )}
+            <button type="button" onClick={() => onSelect(null)} className="ml-auto min-h-10 shrink-0 px-2 text-sm text-ink-dim hover:text-foreground">Cancel</button>
           </div>
+          <div className="min-h-8 lg:hidden">
+            <p className="line-clamp-2 text-xs leading-4 text-ink-dim">{selection.mode === "merge" && !selection.mergeSource ? "Tap another highlighted branch of this same piece, then its destination." : MODE_HINT[selection.mode]}</p>
 
-          <div
-            role="grid"
-            aria-label={`Quantum checkers board, ${size} by ${size}`}
-            className="absolute"
-            style={{
-              top: pad,
-              left: pad,
-              display: "grid",
-              gridTemplateColumns: `repeat(${size}, ${cell}px)`,
-              gridTemplateRows: `repeat(${size}, ${cell}px)`,
-              gap: `${gap}px`,
-            }}
-          >
-            {Array.from({ length: size * size }, (_, index) => {
-              const row = Math.floor(index / size);
-              const col = index % size;
-              const square: Square = [row, col];
-              const key = sqKey(square);
-              const role = roles.get(key) ?? EMPTY_ROLE;
-
-              // The transition that lands on this square, if any piece moved here.
-              const transition = transitionForSquare(
-                state.board,
-                motion,
-                square,
-              );
-
-              const isKept = flicker.kept === key;
-              const flickerDelay = flicker.flicker.get(key);
-              const revealState: "flicker" | "kept" | null = isKept
-                ? "kept"
-                : flickerDelay !== undefined
-                  ? "flicker"
-                  : null;
-
-              const pieceHere = pieceAtSquare(state, square);
-              const entangled =
-                !!pieceHere && !!motion?.entangled.has(pieceHere.piece_id);
-
-              return (
-                <BoardSquare
-                  key={`${key}-${revealNonce}`}
-                  state={state}
-                  row={row}
-                  col={col}
-                  role={role}
-                  selected={
-                    !!selection &&
-                    (pieceHere?.piece_id === selection.piece_id ||
-                      sameSquare(selection.splitTarget, square))
-                  }
-                  transition={transition}
-                  entangled={entangled}
-                  reveal={revealState}
-                  revealDelay={flickerDelay ?? 0}
-                  coherence={coherence[key] ?? null}
-                  coherentMax={coherenceMax}
-                  onSelect={handleSelect}
-                  cell={cell}
-                  interactive={interactive}
-                  onHover={() => undefined}
-                />
-              );
-            })}
           </div>
         </div>
-      </div>
-      <div
-        data-board-controls
-        className="h-24 shrink-0 overflow-hidden lg:h-14 rounded-lg border border-edge bg-card px-3 py-2"
-        aria-live="polite"
-      >
-        {!selection ? (
-          <p className="flex h-full items-center justify-center text-center text-sm text-ink-dim">
-            {interactive
-              ? state.board.level > 0
-                ? "Tap to move · Double-tap a piece to split."
-                : "Tap a piece, then tap a highlighted square."
-              : state.quantum_pending
-                ? "Measuring on hardware…"
-                : "Waiting for the next move."}
-          </p>
-        ) : (
-          <div className="flex h-full flex-col justify-center gap-1">
-            <div className="flex min-h-10 shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
-              <span className="text-sm font-semibold text-primary">
-                {squareName(selection.origin)}
-              </span>
-              {selectionsAt(state, selection.origin).length > 1 &&
-                selectionsAt(state, selection.origin).map((option) => (
-                  <button
-                    key={option.piece_id}
-                    type="button"
-                    disabled={!interactive}
-                    aria-pressed={option.piece_id === selection.piece_id}
-                    onClick={() => onSelect(option)}
-                    className="min-h-10 shrink-0 rounded-md border border-edge px-2 text-xs text-ink-dim"
-                  >
-                    {option.piece_id}
-                  </button>
-                ))}
-              {availableModes(state, selection).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  disabled={!interactive}
-                  aria-pressed={selection.mode === mode}
-                  onClick={() =>
-                    onSelect({
-                      origin: selection.origin,
-                      piece_id: selection.piece_id,
-                      mode,
-                    })
-                  }
-                  className={`min-h-10 rounded-md border px-3 py-2 text-sm disabled:opacity-40 ${selection.mode === mode ? "border-primary bg-primary/20 text-primary" : "border-edge text-ink-dim hover:border-primary"}`}
-                >
-                  {MODE_LABEL[mode]}
-                </button>
-              ))}
-              {(selection.mode === "observe" ||
-                (selection.mode === "spread" &&
-                  selectedActions(state, selection).length === 1)) && (
-                <button
-                  type="button"
-                  disabled={
-                    !interactive ||
-                    selectedActions(state, selection).length === 0
-                  }
-                  className="min-h-10 shrink-0 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-40"
-                  onClick={() => {
-                    const action = selectedActions(state, selection)[0];
-                    if (interactive && action) {
-                      send(actionMessage(action));
-                      onSelect(null);
-                    }
-                  }}
-                >
-                  {selection.mode === "spread"
-                    ? "Confirm split"
-                    : "Measure piece"}
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => onSelect(null)}
-                className="ml-auto min-h-10 shrink-0 px-2 text-sm text-ink-dim hover:text-foreground"
-              >
-                Cancel
-              </button>
-            </div>
-            <div className="min-h-8 lg:hidden">
-              <p className="line-clamp-2 text-xs leading-4 text-ink-dim">
-                {selection.mode === "merge" && !selection.mergeSource
-                  ? "Tap another highlighted branch of this same piece, then its destination."
-                  : MODE_HINT[selection.mode]}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
+    </div>
     </div>
   );
 }
@@ -411,8 +327,7 @@ function transitionForSquare(
   for (const piece of board.pieces) {
     const transition = motion.transitions.get(piece.piece_id);
     if (!transition) continue;
-    if (sameSquare(transition.to, square) && transition.kind !== "hold")
-      return transition;
+    if (sameSquare(transition.to, square) && transition.kind !== "hold") return transition;
   }
   return null;
 }
@@ -428,31 +343,25 @@ function buildRoles(state: GameState, selection: Selection | null): RoleMap {
   for (const piece of state.board.pieces) {
     if (piece.owner !== state.turn) continue;
     for (const [site] of piece.sites) {
-      if (pieceCanActAt(state, piece.piece_id, site))
-        entry(site).selectable = true;
+      if (pieceCanActAt(state, piece.piece_id, site)) entry(site).selectable = true;
     }
   }
   for (const { square, action } of boardTargets(state, selection)) {
     const role = entry(square);
     role.target = true;
-    role.isMergePartner =
-      action.kind === "merge" &&
-      (!action.other_origin || !selection?.mergeSource);
+    role.isMergePartner = action.kind === "merge" && (!action.other_origin || !selection?.mergeSource);
     role.isLanding = !role.isMergePartner;
     if (action.kind === "capture") entry(action.jumped).isJumped = true;
   }
   for (const action of selectedActions(state, selection)) {
-    if (action.kind === "spread")
-      for (const [square] of action.sites) entry(square).inSpreadPreview = true;
+    if (action.kind === "spread") for (const [square] of action.sites) entry(square).inSpreadPreview = true;
   }
   return map;
 }
 
 function pieceAtSquare(state: GameState, square: Square) {
   for (const piece of state.board.pieces) {
-    if (
-      piece.sites.some(([sq]) => sq[0] === square[0] && sq[1] === square[1])
-    ) {
+    if (piece.sites.some(([sq]) => sq[0] === square[0] && sq[1] === square[1])) {
       return piece;
     }
   }
