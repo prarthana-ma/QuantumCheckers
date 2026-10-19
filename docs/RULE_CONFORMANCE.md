@@ -54,10 +54,11 @@ piece marginals, not complex amplitudes or phases.
 
 The rule and property tests exercise the local implementation, including opening
 positions, move legality, splitting, merging, capture/measurement, and state
-invariants. Passing those tests is evidence about this code's behavior only. Exact
-conformance claims require reviewing the paper's rule definitions and validating each
-case against them; upstream parity additionally requires an agreed integration
-approach and a working adapter.
+invariants. `tests/test_protocol.py` separately covers the shared engine contract,
+state helpers, action serialization, and clone behavior. Passing these tests is
+evidence about this code's behavior only. Exact conformance claims require reviewing
+the paper's rule definitions and validating each case against them; upstream parity
+additionally requires an agreed integration approach and a working adapter.
 
 See [PROTOCOL.md](PROTOCOL.md) for the server/client wire contract and
 `qcheckers/engine/paper.py` and `qcheckers/engine/toy.py` for implementation details.
