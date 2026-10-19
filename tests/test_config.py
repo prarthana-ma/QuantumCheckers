@@ -22,6 +22,26 @@ class TestExperimentConfig:
         assert c.level == 2
         assert c.alternate_seats is True
 
+    def test_runner_style_fields_construct(self):
+        c = ExperimentConfig(
+            experiment_id="runner-style",
+            agents=("random", "mcts"),
+            base_seed=42,
+            n_games=4,
+            board_size=6,
+            max_plies=80,
+            level=1,
+            allow_observe=False,
+        )
+        assert c.experiment_id == "runner-style"
+        assert c.agents == ("random", "mcts")
+        assert c.base_seed == 42
+        assert c.n_games == 4
+        assert c.board_size == 6
+        assert c.max_plies == 80
+        assert c.level == 1
+        assert c.allow_observe is False
+
     def test_min_games_justified(self):
         assert isinstance(MIN_GAMES_JUSTIFIED, int)
         assert MIN_GAMES_JUSTIFIED > 0
@@ -147,12 +167,9 @@ def test_seed_helpers_are_deterministic_and_matched() -> None:
 
 def test_configuration_is_frozen_and_validates_fields() -> None:
     condition = condition_by_label("classical-random-vs-random")
-    config = ExperimentConfig("smoke", condition, (1, 2), 2)
 
     with pytest.raises(FrozenInstanceError):
-        config.n_games = 3  # type: ignore[misc]
-    with pytest.raises(ValueError, match="agree"):
-        ExperimentConfig("invalid", condition, (1,), 2)
+        condition.level = 1  # type: ignore[misc]
     with pytest.raises(ValueError, match="level"):
         ConditionConfig("invalid", 3, False, ("random", "random"), "")
 

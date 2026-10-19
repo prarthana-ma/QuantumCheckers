@@ -194,6 +194,41 @@ def test_summarize_parsed_old_jsonl_record() -> None:
     assert summary["rates"]["mean_spread_moves"] == pytest.approx(3.0)
 
 
+def test_summarize_runner_v1_record_with_nested_metrics() -> None:
+    record = {
+        "schema_version": "1.0",
+        "experiment_id": "sample",
+        "game_id": "sample-7",
+        "timestamp": "2026-10-19T00:00:00Z",
+        "agents": {"0": "random", "1": "mcts"},
+        "player_assignment": {"0": "random", "1": "mcts"},
+        "seed": 7,
+        "initial_state": {},
+        "config": {},
+        "outcome": "win_p1",
+        "winner": 1,
+        "draw_reason": None,
+        "n_plies": 8,
+        "duration_seconds": 1.0,
+        "error": None,
+        "replay_ref": None,
+        "metrics": {"collapses": 1, "observe_moves": 2, "spread_moves": 3},
+        "env": {},
+    }
+
+    summary = summarize([record])
+
+    assert summary["n_games"] == 1
+    assert summary["metrics"]["win_rate_p1"].p == pytest.approx(1.0)
+    assert summary["metrics"]["collapse_rate"].p == pytest.approx(1.0)
+    assert summary["metrics"]["observe_usage"].p == pytest.approx(1.0)
+    assert summary["metrics"]["spread_usage"].p == pytest.approx(1.0)
+    assert summary["rates"]["mean_length"] == pytest.approx(8.0)
+    assert summary["rates"]["mean_collapses"] == pytest.approx(1.0)
+    assert summary["rates"]["mean_observe_moves"] == pytest.approx(2.0)
+    assert summary["rates"]["mean_spread_moves"] == pytest.approx(3.0)
+
+
 def test_summarize_empty_input_and_metrics_registry() -> None:
     summary = summarize([], 1.96)
     assert summary["n_games"] == 0

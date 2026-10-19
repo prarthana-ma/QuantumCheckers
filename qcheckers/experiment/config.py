@@ -12,18 +12,16 @@ import json
 import tomllib
 from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 #: Minimum games per condition justified by the brief (P1's code imports this).
 MIN_GAMES_JUSTIFIED: int = 170
 
-#: Z-score for 95% confidence intervals (P2 statistics).
 Z_95: float = 1.96
 
-#: Primary metric for the ablation (P2 statistics).
+# TODO-confirm with P1: whether win_rate_p0 is the primary metric.
 PRIMARY_METRIC: str = "win_rate_p0"
-
-#: Secondary metrics reported alongside the primary (P2 statistics).
+# Exploratory metrics; interpret these as secondary to PRIMARY_METRIC.
 SECONDARY_METRICS: tuple[str, ...] = (
     "win_rate_p1",
     "draw_rate",
@@ -36,15 +34,13 @@ SECONDARY_METRICS: tuple[str, ...] = (
     "mean_observe_moves",
     "mean_spread_moves",
 )
-
-#: Stopping rule description (P2 statistics).
 STOPPING_RULE: str = (
     "Fixed planned n; no early stopping; each game is subject to the per-game "
     "max_plies cap."
 )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ConditionConfig:
     """One experimental condition and the agents assigned to its players."""
 
@@ -55,12 +51,20 @@ class ConditionConfig:
     description: str
 
     def __post_init__(self) -> None:
-        if not self.label:
-            raise ValueError("label must be non-empty")
+        if not isinstance(self.label, str) or not self.label:
+            raise ValueError("label must be a non-empty string")
+        if not isinstance(self.level, int) or isinstance(self.level, bool):
+            raise ValueError("level must be an integer")
         if self.level not in (0, 1, 2):
-            raise ValueError(f"level must be 0, 1 or 2, got {self.level!r}")
+            raise ValueError(f"level must be 0, 1 or 2; got {self.level!r}")
         if not isinstance(self.allow_observe, bool):
             raise ValueError("allow_observe must be a bool")
+        if not isinstance(self.agent_kinds, tuple) or len(self.agent_kinds) != 2:
+            raise ValueError("agent_kinds must be a two-item tuple")
+        if any(not isinstance(agent, str) or not agent for agent in self.agent_kinds):
+            raise ValueError("agent_kinds must contain non-empty strings")
+        if not isinstance(self.description, str):
+            raise ValueError("description must be a string")
 
 
 @dataclass(frozen=True)
@@ -162,129 +166,19 @@ def save_config(config: ExperimentConfig, path: str | Path) -> None:
     p.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
 
 
-__all__ = [
-    "ExperimentConfig",
-    "MIN_GAMES_JUSTIFIED",
-    "load_config",
-    "save_config",
-"""Reproducible experiment configuration and condition registry."""
-
-from __future__ import annotations
-
-import math
-from dataclasses import dataclass
-
-MIN_GAMES_JUSTIFIED = 170
-"""A target that needs the sample-size justification, not a guarantee."""
-
-Z_95 = 1.96
-
-# TODO-confirm with P1: whether win_rate_p0 is the primary metric.
-PRIMARY_METRIC = "win_rate_p0"
-# Exploratory metrics; interpret these as secondary to PRIMARY_METRIC.
-SECONDARY_METRICS = (
-    "win_rate_p1",
-    "draw_rate",
-    "collapse_rate",
-    "observe_usage",
-    "spread_usage",
-    "mean_length",
-    "stdev_length",
-    "mean_collapses",
-    "mean_observe_moves",
-    "mean_spread_moves",
-)
-STOPPING_RULE = (
-    "Fixed planned n; no early stopping; each game is subject to the per-game "
-    "max_plies cap."
-)
-
-
-@dataclass(frozen=True, slots=True)
-class ConditionConfig:
-    """One experimental condition and the agents assigned to its players."""
-
-    label: str
-    level: int
-    allow_observe: bool
-    agent_kinds: tuple[str, str]
-    description: str
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.label, str) or not self.label:
-            raise ValueError("label must be a non-empty string")
-        if not isinstance(self.level, int) or isinstance(self.level, bool):
-            raise ValueError("level must be an integer")
-        if self.level not in (0, 1, 2):
-            raise ValueError(f"level must be 0, 1 or 2; got {self.level!r}")
-        if not isinstance(self.allow_observe, bool):
-            raise ValueError("allow_observe must be a bool")
-        if not isinstance(self.agent_kinds, tuple) or len(self.agent_kinds) != 2:
-            raise ValueError("agent_kinds must be a two-item tuple")
-        if any(not isinstance(agent, str) or not agent for agent in self.agent_kinds):
-            raise ValueError("agent_kinds must contain non-empty strings")
-        if not isinstance(self.description, str):
-            raise ValueError("description must be a string")
-
-
-@dataclass(frozen=True, slots=True)
-class ExperimentConfig:
-    """Immutable settings for a reproducible batch of games."""
-
-    name: str
-    condition: ConditionConfig
-    seeds: tuple[int, ...] = ()
-    n_games: int = 0
-    # Board-size default adopted from previous implementation.
-    board_size: int = 4
-    # Max-plies default adopted from previous implementation.
-    max_plies: int = 200
-    z: float = Z_95
-    notes: str = (
-        "TODO-confirm with P1/P5 whether Rejoin is disabled when Observe is off; "
-        "engine level numbering adopted from previous implementation."
-    )
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.name, str) or not self.name:
-            raise ValueError("name must be a non-empty string")
-        if not isinstance(self.condition, ConditionConfig):
-            raise ValueError("condition must be a ConditionConfig")
-        if not isinstance(self.seeds, tuple):
-            raise ValueError("seeds must be a tuple")
-        if any(not isinstance(seed, int) or isinstance(seed, bool) for seed in self.seeds):
-            raise ValueError("seeds must contain integers")
-        if len(set(self.seeds)) != len(self.seeds):
-            raise ValueError("seeds must be unique")
-        if not isinstance(self.n_games, int) or isinstance(self.n_games, bool):
-            raise ValueError("n_games must be an integer")
-        if self.n_games < 0:
-            raise ValueError(f"n_games must be >= 0; got {self.n_games}")
-        if self.seeds and self.n_games and len(self.seeds) != self.n_games:
-            raise ValueError("seeds length and n_games must agree")
-        if not isinstance(self.board_size, int) or isinstance(self.board_size, bool):
-            raise ValueError("board_size must be an integer")
-        if self.board_size < 4:
-            raise ValueError(f"board_size must be at least 4; got {self.board_size}")
-        if not isinstance(self.max_plies, int) or isinstance(self.max_plies, bool):
-            raise ValueError("max_plies must be an integer")
-        if self.max_plies < 1:
-            raise ValueError(f"max_plies must be >= 1; got {self.max_plies}")
-        if not isinstance(self.z, (int, float)) or isinstance(self.z, bool):
-            raise ValueError("z must be numeric")
-        if not math.isfinite(self.z) or self.z <= 0:
-            raise ValueError(f"z must be finite and > 0; got {self.z!r}")
-        if not isinstance(self.notes, str):
-            raise ValueError("notes must be a string")
-
-
 def ablation_label(agent_a: str, agent_b: str, observe: bool) -> str:
     """Build the stable label for one supported Observe ablation cell."""
     valid_first: set[str] = {"mcts", "prob"}
     if agent_a not in valid_first:
-        raise ValueError(f"unsupported agent kind for first position: {agent_a!r}; expected one of {valid_first}")
+        raise ValueError(
+            f"unsupported agent kind for first position: {agent_a!r}; "
+            f"expected one of {valid_first}"
+        )
     if agent_b not in {"random", "mcts", "prob"} or agent_b == agent_a:
-        raise ValueError(f"unsupported agent kind for second position: {agent_b!r}; expected random or the other of mcts/prob")
+        raise ValueError(
+            f"unsupported agent kind for second position: {agent_b!r}; "
+            "expected random or the other of mcts/prob"
+        )
     suffix = "obs" if observe else "noobs"
     return f"ablation-{agent_a}-vs-{agent_b}-{suffix}"
 
@@ -312,12 +206,6 @@ CONDITIONS: tuple[ConditionConfig, ...] = (
         allow_observe=True,
         agent_kinds=("mcts", "random"),
         description="MCTS versus random with Observe enabled.",
-        ablation_label("mcts", "random", True),
-        2,
-        True,
-        ("mcts", "random"),
-        "MCTS versus random with Observe enabled; level semantics adopted from "
-        "previous implementation.",
     ),
     ConditionConfig(
         label=ablation_label("mcts", "random", False),
@@ -332,12 +220,6 @@ CONDITIONS: tuple[ConditionConfig, ...] = (
         allow_observe=True,
         agent_kinds=("prob", "random"),
         description="Probability-aware agent versus random with Observe enabled.",
-        ablation_label("prob", "random", True),
-        2,
-        True,
-        ("prob", "random"),
-        "Probability-aware agent versus random with Observe enabled; level semantics "
-        "adopted from previous implementation.",
     ),
     ConditionConfig(
         label=ablation_label("prob", "random", False),
