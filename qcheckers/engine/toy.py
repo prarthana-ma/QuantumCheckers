@@ -514,14 +514,24 @@ class DeterministicToyEngine:
                 pieces = [p for p in pieces if p.piece_id != captured]
                 state = state.clone(captured=tuple(sorted(state.captured + (captured,))))
         elif isinstance(action, SpreadAction):
-            pieces = self._replace(pieces, action.piece_id, action.sites)
+            pieces = self._replace(
+                pieces,
+                action.piece_id,
+                action.sites,
+                coherence=self.decoherence_ticks if self.decoherence else None,
+            )
         elif isinstance(action, RejoinAction):
             pieces = self._replace(pieces, action.piece_id, [(action.target, 1.0)])
         elif isinstance(action, MergeAction):
             first = state.piece(action.piece_id)
             other = state.piece(action.other_piece_id)
             pieces = [p for p in pieces if p.piece_id != action.other_piece_id]
-            pieces = self._replace(pieces, action.piece_id, _merge_sites(first.sites, other.sites))
+            pieces = self._replace(
+                pieces,
+                action.piece_id,
+                _merge_sites(first.sites, other.sites),
+                coherence=self.decoherence_ticks if self.decoherence else None,
+            )
         elif isinstance(action, ObserveAction):
             piece = state.piece(action.piece_id)
             if not piece.is_spread:
@@ -561,17 +571,24 @@ class DeterministicToyEngine:
 
     @staticmethod
     def _replace(
-        pieces: list[Piece], piece_id: str, sites: Sequence[tuple[Square, float]]
+        pieces: list[Piece],
+        piece_id: str,
+        sites: Sequence[tuple[Square, float]],
+        *,
+        coherence: int | None = None,
     ) -> list[Piece]:
         return [
-            Piece(p.piece_id, p.owner,
-                  tuple((s, float(w)) for s, w in sites)
-                  if p.piece_id == piece_id else p.sites)
+            Piece(
+                p.piece_id,
+                p.owner,
+                tuple((square, float(weight)) for square, weight in sites),
+                coherence,
+            )
             if p.piece_id == piece_id else p
             for p in pieces
         ]
 
-def _tick_coherence(
+    def _tick_coherence(
         self, pieces: list[Piece], action: Action, ply: int
     ) -> tuple[list[Piece], list[CollapseEvent]]:
         """Level-4 decoherence: age spread pieces, expiring them at zero.
@@ -588,16 +605,25 @@ def _tick_coherence(
             if not piece.is_spread:
                 aged.append(piece)
                 continue
-            # Since Piece does not expose coherence as an init argument and is frozen,
-            # we track freshness via the action rather than piece attributes.
-            is_fresh = piece.piece_id == action.piece_id
+            is_fresh = (
+                piece.piece_id == action.piece_id
+                and isinstance(action, (SpreadAction, MergeAction))
+            )
             if is_fresh:
-                # Fresh piece from current action; keep as-is.
-                # The engine's decoherence flag controls whether it expires.
-                aged.append(piece)
+                aged.append(
+                    Piece(
+                        piece.piece_id,
+                        piece.owner,
+                        piece.sites,
+                        self.decoherence_ticks,
+                    )
+                )
                 continue
-            # For non-fresh spread pieces, use the engine's decoherence_ticks.
-            remaining = self.decoherence_ticks - 1
+            remaining = (
+                piece.coherence
+                if piece.coherence is not None
+                else self.decoherence_ticks
+            ) - 1
             if remaining <= 0:
                 sampled = self._sample_sites(piece.sites)
                 events.append(
@@ -611,9 +637,9 @@ def _tick_coherence(
                         probability=sampled[1],
                     )
                 )
-                aged.append(piece)
+                aged.append(Piece(piece.piece_id, piece.owner, ((sampled[0], 1.0),)))
             else:
-                aged.append(piece)
+                aged.append(Piece(piece.piece_id, piece.owner, piece.sites, remaining))
         return aged, events
 
     def _sample_sites(self, sites: tuple[tuple[Square, float], ...]) -> tuple[Square, float]:
