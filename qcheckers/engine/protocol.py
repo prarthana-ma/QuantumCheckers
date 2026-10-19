@@ -369,6 +369,12 @@ class Step:
     events: tuple[CollapseEvent, ...] = ()
 
 
+# Backwards-compatible aliases: fixtures and modules written before the
+# GameOutcome/Step rename keep importing the old names.
+Outcome = GameOutcome
+Transition = Step
+
+
 # ---------------------------------------------------------------------------
 # Engine protocol
 # ---------------------------------------------------------------------------

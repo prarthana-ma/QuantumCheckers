@@ -33,6 +33,7 @@ class RandomAgent:
         self.name = name
         self.seed = int(seed)
         self._rng = random.Random(self.seed)
+        self._usage: dict[str, int] = {}
 
     def decide(self, state: GameState, legal: Sequence[Action]) -> Action:
         """Return one uniformly chosen legal action."""
@@ -41,13 +42,21 @@ class RandomAgent:
                 f"{type(self).__name__} received no legal actions on ply {state.ply}; "
                 "the runner should have stopped the game already"
             )
-        return self._rng.choice(list(legal))
+        action = self._rng.choice(list(legal))
+        kind = getattr(action, "kind", "unknown")
+        self._usage[kind] = self._usage.get(kind, 0) + 1
+        return action
+
+    def usage(self) -> dict[str, int]:
+        """Action-kind counts observed across this agent's decisions."""
+        return dict(self._usage)
 
     def reset(self, seed: int | None = None) -> None:
         """Rewind the RNG so an agent can be reused for a fresh game."""
         if seed is not None:
             self.seed = int(seed)
         self._rng = random.Random(self.seed)
+        self._usage.clear()
 
     def __repr__(self) -> str:  # pragma: no cover - debugging aid
         return f"{type(self).__name__}(seed={self.seed}, name={self.name!r})"

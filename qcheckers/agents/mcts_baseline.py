@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import math
 import random
+import time
 from typing import Sequence
 
 from qcheckers.agents.base import Agent
@@ -166,6 +167,8 @@ class MCTSBaselineAgent:
             raise ValueError(f"depth must be >= 1, got {depth}")
         if rollout_steps < 1:
             raise ValueError(f"rollout_steps must be >= 1, got {rollout_steps}")
+        if exploration < 0:
+            raise ValueError(f"exploration must be >= 0, got {exploration}")
         self.name = name
         self.seed = int(seed)
         self.iterations = int(iterations)
@@ -176,6 +179,8 @@ class MCTSBaselineAgent:
         self._base_engine = engine
         self._engine = engine
         self._rng = random.Random(self.seed)
+        #: Snapshot of the most recent decision's search effort (see ``decide``).
+        self.last_diagnostics: dict[str, float | int] = {}
 
     # -- Agent protocol ----------------------------------------------------
 
@@ -186,6 +191,13 @@ class MCTSBaselineAgent:
                 f"{type(self).__name__} received no legal actions on ply {state.ply}"
             )
         if len(legal) == 1:
+            self.last_diagnostics = {
+                "simulations": 0,
+                "expansions": 0,
+                "completed_rollouts": 0,
+                "elapsed_seconds": 0.0,
+                "root_visits": 0,
+            }
             return legal[0]
 
         # Two isolation rules make one decision a pure function of (seed, state, legal):
@@ -199,18 +211,33 @@ class MCTSBaselineAgent:
         values = {index: 0.0 for index in range(len(legal))}
         visits = {index: 0 for index in range(len(legal))}
         parent_visits = 0
+        simulations = 0
+        expansions = 0
+        completed_rollouts = 0
+        started = time.perf_counter()
 
         for _ in range(self.iterations):
             parent_visits += 1
             index = self._select(legal, values, visits, parent_visits)
             child = self._expand(state, legal[index], root_player)
+            simulations += 1
             if child is None:
                 continue
+            expansions += 1
             # Back-propagate the rollout value, not a static score: that is what turns
             # UCT selection over an unexpanded tree into an actual MCTS player.
             score = self._rollout(child, root_player)
+            completed_rollouts += 1
             values[index] += score
             visits[index] += 1
+
+        self.last_diagnostics = {
+            "simulations": simulations,
+            "expansions": expansions,
+            "completed_rollouts": completed_rollouts,
+            "elapsed_seconds": time.perf_counter() - started,
+            "root_visits": parent_visits,
+        }
 
         best_index = max(
             range(len(legal)),
