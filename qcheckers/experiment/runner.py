@@ -15,8 +15,6 @@ Design:
 - Failures are captured as distinct outcomes (error/timeout/invalid_action), never
   silently fabricated as valid results.
 - Resources are cleaned up after each game regardless of outcome.
-"""Seeded game runner.
-
 Owner: **Person B -- baseline agents and harness**. This is the headless harness that
 brief section 16 Gate 3 requires, and the JSONL writer whose format Person D and
 P4 depend on.
