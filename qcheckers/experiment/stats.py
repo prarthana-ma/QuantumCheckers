@@ -206,7 +206,30 @@ def _field(record: Any, *names: str) -> Any:
 
 
 def _count_field(record: Any, name: str, *aliases: str) -> int:
-    value = _field(record, name, *aliases)
+    data = _record_mapping(record)
+    value: Any = None
+    found = False
+    for field_name in (name, *aliases):
+        if field_name in data:
+            value = data[field_name]
+            found = True
+            break
+        if hasattr(record, field_name):
+            value = getattr(record, field_name)
+            found = True
+            break
+    if not found:
+        metrics = data.get("metrics")
+        if not isinstance(metrics, Mapping):
+            metrics = getattr(record, "metrics", None)
+        if isinstance(metrics, Mapping):
+            for field_name in (name, *aliases):
+                if field_name in metrics:
+                    value = metrics[field_name]
+                    found = True
+                    break
+    if not found:
+        raise ValueError(f"game record is missing required field {name!r}")
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError(f"game record field {name!r} must be a non-negative integer")
     return value
@@ -221,7 +244,7 @@ def _winner(record: Any) -> Any:
 
 
 def _plies(record: Any) -> int:
-    return _count_field(record, "length", "plies")
+    return _count_field(record, "length", "plies", "n_plies")
 
 
 def _collapses(record: Any) -> int:
