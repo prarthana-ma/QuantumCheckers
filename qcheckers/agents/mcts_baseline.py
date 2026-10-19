@@ -16,8 +16,7 @@ Integration boundary
 --------------------
 The upstream engine is intentionally not integrated: the study uses the documented
 toy engine, and the upstream licence/scope decision is recorded in
-``docs/REPRODUCIBILITY.md``. ``CheqqersAdapter`` remains an explicit, unused integration
-seam rather than an unfinished dependency of this baseline.
+``docs/REPRODUCIBILITY.md``.
 
 Deliberate design choices
 -------------------------

@@ -25,7 +25,7 @@ state. The source of truth is `README.md`, `docs/REPORT.md`,
 - The Qiskit/Aer demonstration is under `qcheckers/quantum/`; it is separate from both game engines and the archived study.
 - The **opt-in live IBM path** is implemented and tested against a mocked provider boundary. It samples a collapse only; it does not run the persistent board state on a QPU. No real hardware job is claimed. See `docs/HARDWARE_COLLAPSE.md` and `docs/RULE_CONFORMANCE.md`.
 - The archived experiment outputs, plots and numerical conclusions all belong to the 4×4 toy engine. The current local paper engine and live agent have not been evaluated by those batches.
-- The upstream Cheqqers engine remains deliberately unintegrated. The adapter is an intentional seam, not unfinished production code.
+- The upstream Cheqqers engine remains deliberately unintegrated; no upstream or adapter code ships with the project (decision recorded in `docs/ATTRIBUTION.md`).
 - The novelty search remains narrow, so the report does not claim a verified novel contribution.
 - Generated logs, replay payloads, plots under `results/`, caches, and local client logs are not submission source files. Regeneration commands are in the README and reproducibility report.
 

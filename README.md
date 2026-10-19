@@ -278,7 +278,6 @@ qcheckers/
     protocol.py     Person A -- types and the GameEngine contract
     toy.py          Frozen 4×4 probability-only research engine for archived runs
     paper.py        Sparse complex-amplitude local gameplay engine, Levels 0–4
-    adapter.py      Person A/B -- documented seam for upstream Cheqqers (Gate 2)
   agents/         Decision-makers
     base.py           Person B -- Agent protocol
     random_agent.py   Person B -- seeded uniform-random baseline

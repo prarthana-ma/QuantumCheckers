@@ -44,5 +44,4 @@ torn out.
 
 - **Source:** [github.com/raatmarien/cheqqers](https://github.com/raatmarien/cheqqers)
   (confirmed AGPL-3.0) — read-only reference. **Nothing copied**: no vendoring,
-  wrapping, or re-implementation; see `qcheckers/engine/adapter.py` and
-  `docs/REPRODUCIBILITY.md` §8.
+  wrapping, or re-implementation; see `docs/REPRODUCIBILITY.md` §8.

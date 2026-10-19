@@ -184,7 +184,7 @@ general. `max_plies` is now part of the record (`docs/PROTOCOL.md` §4), and the
 covered by seven tests of its own.
 
 ```
-python scripts/make_plots.py     -> results/plots/*.png   (4 figures, each stating its n)
+python scripts/make_plots.py     -> results/plots/*.png   (5 figures, each stating its n)
 ```
 
 ---
@@ -271,7 +271,7 @@ is still an independent implementation with documented choices and limits.
 python -m pytest -q                                   # 270 tests in 12 Oct 2026 snapshot
 python scripts/run_baseline.py --condition quantum-prob-vs-random -n 170
 python scripts/run_ablation.py --agent-a prob --agent-b random -n 170 --write-logs
-python scripts/make_plots.py                          # 4 figures, each stating its n
+python scripts/make_plots.py                          # 5 figures, each stating its n
 python scripts/make_demo_seeds.py                     # 3 replay payloads for the demo
 python scripts/verify_results.py --json results/verification.json
 python scripts/browser_check.py                       # historical static-client flow

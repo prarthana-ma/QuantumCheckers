@@ -1,7 +1,7 @@
 """Core game protocol and value types for the Quantum Checkers study.
 
 Owner: **Person A -- rules and engine guardian**. Person A owns this file and
-``toy.py`` / ``adapter.py``. Per the team plan, no one else may change core rule
+``toy.py``. Per the team plan, no one else may change core rule
 logic or these types without Person A's agreement.
 
 Everything in this module is stdlib-only and side-effect free: no numpy, no global

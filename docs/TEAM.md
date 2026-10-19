@@ -183,13 +183,13 @@ have a head start.
 - **This team split**, with reading assignments, ownership, timeline and progress.
 - **README rewritten** around the research question, with a status banner reconciled to the verified records (toy-engine numbers only, AGPL-3.0 confirmed with no upstream code copied, novelty pending-form).
 - **Dependencies cleaned:** PennyLane and SciPy were removed with the earlier project. The current project also includes FastAPI/Uvicorn, Qiskit/Aer and the Next.js client; see the root requirements and client lockfile.
-- **Package in place and importable:** `qcheckers.engine` (`protocol.py`, `toy.py`, `adapter.py`), `qcheckers.agents` (`base`, `random_agent`, `mcts_baseline`, `observe_agent`, `prob_aware`), `qcheckers.experiment` (`schema`, `runner`, `config`, `stats`), `qcheckers.viz` (`replay`).
+- **Package in place and importable:** `qcheckers.engine` (`protocol.py`, `toy.py`), `qcheckers.agents` (`base`, `random_agent`, `mcts_baseline`, `observe_agent`, `prob_aware`), `qcheckers.experiment` (`schema`, `runner`, `config`, `stats`), `qcheckers.viz` (`replay`).
 - The 12 October snapshot had **270 tests**; see `HANDOFF.md` for the current test count.
 - **Game protocol frozen** (`docs/PROTOCOL.md`): REST rooms plus WebSocket moves, JSONL log schema, reconnect semantics. The primary game client is Next.js (`client/`); a static alternative remains in `viewer/`.
 - **Batches run:** four conditions at n=170 (classical-random, classical-MCTS, quantum-observe, quantum-prob, all vs random) plus a matched observe-on/off ablation at 170 per arm. `scripts/verify_results.py` reports **1020/1020 records regenerating byte-for-byte**; `scripts/browser_check.py` is **57/57** through the real UI.
 - **Demo seeds exported** (`scripts/make_demo_seeds.py`): level-0, level-2 with Observe firing, level-4 expiry.
-- **Gates 1–6 recorded** in `docs/REPRODUCIBILITY.md` §4 — no gate failed, so no fallback triggered. Gate 2's tag is confirmed present but the upstream engine is deliberately **not** integrated (AGPL-3.0 copyleft vs course-pilot scope; seam kept, decision recorded in `adapter.py`). Gate 5's follow-up search was narrow, so novelty stays pending-form.
-- **Scripts in place:** `scripts/run_baseline.py`, `scripts/run_ablation.py`, `scripts/make_plots.py` (4 figures, each stating its n), `scripts/make_demo_seeds.py`, `scripts/verify_results.py`, `scripts/browser_check.py`, plus `notebooks/`.
+- **Gates 1–6 recorded** in `docs/REPRODUCIBILITY.md` §4 — no gate failed, so no fallback triggered. Gate 2's tag is confirmed present but the upstream engine is deliberately **not** integrated (AGPL-3.0 copyleft vs course-pilot scope; decision recorded in `docs/REPRODUCIBILITY.md` §4). Gate 5's follow-up search was narrow, so novelty stays pending-form.
+- **Scripts in place:** `scripts/run_baseline.py`, `scripts/run_ablation.py`, `scripts/make_plots.py` (5 figures, each stating its n), `scripts/make_demo_seeds.py`, `scripts/verify_results.py`, `scripts/browser_check.py`, plus `notebooks/`.
 - **Statistics layer already provides** `wilson_interval`, `compare_rates` and `summarize`.
 - **Course submission text drafted** — title, abstract and five verified references for the IEG 313 title-and-summary form.
 

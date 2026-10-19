@@ -88,7 +88,7 @@ measurement cost, entanglement, decoherence — to anyone who plays it. *Thank t
 ### Anticipated questions
 
 - *"Why not use the authors' code?"* → AGPL-3.0 confirmed; copyleft obligations vs
-  course-pilot scope; seam kept, decision recorded in `adapter.py`.
+  course-pilot scope; upstream deliberately not integrated (decision in `docs/REPRODUCIBILITY.md`).
 - *"Your MCTS is weak, so what?"* → Agreed — mismatch 9 is documented; our baseline
   calibrates our engine, never the paper's result.
 - *"Observe lost — failed project?"* → No: the question was answered with intervals,

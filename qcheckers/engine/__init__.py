@@ -1,6 +1,6 @@
 """Game engine layer.
 
-Person A owns ``protocol.py``, ``toy.py`` and ``adapter.py``. Nothing outside this
+Person A owns ``protocol.py`` and ``toy.py``. Nothing outside this
 subpackage may change core rule logic (see ``docs/TEAM.md``).
 """
 
