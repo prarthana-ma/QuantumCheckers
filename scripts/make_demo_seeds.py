@@ -1,6 +1,6 @@
 """CLI: write the three demo replay payloads the report and the demo point at.
 
-Owner: **P4 -- replay viewer and reproducibility package**.
+Owner: **Person E -- replay viewer and reproducibility package**.
 
 Three seeds, one per thing the project is trying to show, each a replay payload the
 static viewer (`viewer/index.html`) can step through with no server and no build step:

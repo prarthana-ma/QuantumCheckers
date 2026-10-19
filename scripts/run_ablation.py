@@ -1,7 +1,7 @@
 """CLI: compare two agent configurations and print rates with Wilson intervals.
 
 Owner: **Person D -- measurement, statistics and plots**. Person B owns the harness this
-drives; P4 copies the numbers into the reproducibility report.
+drives; Person E copies the numbers into the reproducibility report.
 
 What it does
 ------------

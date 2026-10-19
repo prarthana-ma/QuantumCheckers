@@ -1,7 +1,7 @@
 """CLI: run a seeded baseline batch and write JSONL logs.
 
 Owner: **Person B -- baseline agents and harness**. Person D consumes the output;
-P4 uses it for the viewer and the reproducibility report.
+Person E uses it for the viewer and the reproducibility report.
 
 What it does
 ------------
@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-import dataclasses
 import time
 from pathlib import Path
 
@@ -175,46 +174,6 @@ def main(argv: list[str] | None = None) -> int:
             board_size=args.board_size,
             max_plies=args.max_plies,
         )
-    else:
-        config = ExperimentConfig()
-
-    # Apply CLI overrides
-    if args.agent_a is not None:
-        agents = [config.agents[0], config.agents[1]]
-        agents[0] = args.agent_a
-        config = dataclasses.replace(config, agents=tuple(agents))
-    if args.agent_b is not None:
-        agents = [config.agents[0], config.agents[1]]
-        agents[1] = args.agent_b
-        config = dataclasses.replace(config, agents=tuple(agents))
-    if args.games is not None:
-        config = dataclasses.replace(config, n_games=args.games)
-    if args.base_seed is not None:
-        config = dataclasses.replace(config, base_seed=args.base_seed)
-    if args.board_size is not None:
-        config = dataclasses.replace(config, board_size=args.board_size)
-    if args.max_plies is not None:
-        config = dataclasses.replace(config, max_plies=args.max_plies)
-    if args.level is not None:
-        config = dataclasses.replace(config, level=args.level)
-    if args.results_dir is not None:
-        config = dataclasses.replace(config, output_dir=args.results_dir)
-    if args.replays:
-        config = dataclasses.replace(config, export_replays=True)
-    if args.no_alternate:
-        config = dataclasses.replace(config, alternate_seats=False)
-    if args.experiment_id is not None:
-        config = dataclasses.replace(config, experiment_id=args.experiment_id)
-
-    if config.n_games < 1:
-        print("error: n_games must be >= 1", file=sys.stderr)
-        return 2
-    if config.board_size < 4:
-        print("error: board_size must be >= 4", file=sys.stderr)
-        return 2
-    if config.level not in (0, 1, 2):
-        print("error: level must be 0, 1 or 2", file=sys.stderr)
-        return 2
 
     if not args.quiet:
         print(f"engine        : {ENGINE_LABEL} (upstream Cheqqers NOT integrated)")
