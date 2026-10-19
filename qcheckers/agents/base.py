@@ -1,55 +1,82 @@
-"""Agent protocol and shared helpers.
+"""The agent interface every baseline and extension implements.
 
-P1's agents and P3's baselines both implement :class:`Agent`. The protocol is
-intentionally minimal so any engine-playing agent can plug into the runner.
+Owner: **Person B -- baseline agents and harness**. Person A owns the engine types an
+agent sees; Person B owns this protocol and the baseline implementations.
 
-Conventions
------------
-* ``decide(state, legal)`` receives the current state and the engine's legal-action
-  list, and returns one of those actions. Returning anything else is a bug.
-* Agents that need randomness receive a private, seedable RNG — never the global
-  ``random`` module — so runs are reproducible.
-* ``reset()`` returns the agent to a clean state between games.
+An agent sees a :class:`~qcheckers.engine.protocol.GameState` and returns exactly one
+legal :class:`~qcheckers.engine.protocol.Action`. That is the whole contract. The
+runner enforces legality, so an agent that returns something illegal fails loudly
+rather than corrupting a game log.
+
+Agents must not mutate the state they are given: :class:`GameState` is frozen, and the
+only permitted way to "look ahead" is to call ``engine.apply`` and inspect the
+returned :class:`~qcheckers.engine.protocol.Step`.
 """
 
 from __future__ import annotations
 
 from typing import Protocol, Sequence, runtime_checkable
 
-from qcheckers.engine.protocol import Action, GameState
+from qcheckers.engine.protocol import Action, GameEngine, GameState
+
+#: Structural alias for an engine, kept local so agents can be type-annotated without
+#: importing the concrete toy engine.
+EngineLike = GameEngine
 
 
 @runtime_checkable
 class Agent(Protocol):
-    """The common agent interface. Implementations must provide these members."""
+    """A decision-maker for one side of one game.
 
-    #: Stable label written into game records.
+    Attributes
+    ----------
+    name:
+        Short stable label. Logged verbatim into every ``GameRecord``, so it appears
+        in plots and the ablation table; keep it filesystem- and JSON-safe.
+    """
+
     name: str
 
     def decide(self, state: GameState, legal: Sequence[Action]) -> Action:
-        """Choose one action from ``legal`` for the current ``state``."""
+        """Choose one action from ``legal``.
+
+        Parameters
+        ----------
+        state:
+            The current position. Treated as read-only.
+        legal:
+            Non-empty list of legal actions, already ordered deterministically by the
+            engine. Returning something outside this list is a bug and the runner will
+            raise.
+
+        Returns
+        -------
+        Action
+            One element of ``legal``.
+
+        Notes
+        -----
+        ``legal`` is passed explicitly rather than re-derived from the engine so an
+        agent cannot silently disagree with the engine about what is legal -- which
+        would hide exactly the class of bug Person A's tests exist to catch.
+        """
         ...
 
-    def reset(self) -> None:
-        """Reset any per-game state (counters, caches, RNG)."""
-        ...
 
+def fallback_action(legal: Sequence[Action], preferred: str | None = None) -> Action:
+    """Pick an action when an agent has no preference.
 
-def fallback_action(
-    pool: Sequence[Action], *, preferred: str | None = "capture"
-) -> Action:
-    """Pick an action from ``pool``, preferring ``preferred`` kind when present.
-
-    Falls back to the first action of any kind. Used by agents that need a simple,
-    deterministic last-resort chooser. Raises ``ValueError`` for an empty pool.
+    Tries ``preferred`` kind first (matched-baseline fairness: every agent in an
+    ablation should be forced onto the same move when both are indifferent), then
+    falls back to the first legal action. Never raises for a non-empty ``legal``.
     """
-    if not pool:
-        raise ValueError("fallback_action received an empty action pool")
+    if not legal:
+        raise ValueError("no legal actions: game should have been terminal")
     if preferred is not None:
-        for action in pool:
-            if getattr(action, "kind", None) == preferred:
+        for action in legal:
+            if action.kind == preferred:
                 return action
-    return pool[0]
+    return legal[0]
 
 
-__all__ = ["Agent", "fallback_action"]
+__all__ = ["Agent", "EngineLike", "fallback_action"]

@@ -1,238 +1,233 @@
-"""Experiment configuration for QuantumCheckers.
+"""Experiment configuration.
 
-Validated configuration schema for experiment runs. Coordinates with P2 (Vrinda)
-on the statistical fields and with the runner on execution parameters.
+Owner: **Person D -- measurement, statistics and plots**, with **Person B** owning the
+fields the runner reads. Person C owns the condition *labels* as the extension
+vocabulary; this module is where those labels become executable config.
 
-Configuration format: JSON or TOML. The schema is versioned via ``version``.
+Why config-as-data
+------------------
+The ablation (brief section 11) must hold everything fixed except the studied feature.
+Describing each condition as a frozen dataclass instead of a hand-written script makes
+that checkable at a glance and makes the label strings that appear in plots come from
+exactly one place.
+
+Two rules for this file, straight from the brief:
+
+* **Do not tune per condition.** Every field except the studied feature must be equal
+  across the conditions of one comparison.
+* **Sample size is a decision, not a default.** ``n_games`` defaults to 0 games on
+  purpose: a real batch must state its size, and the brief asks for at least 170 games
+  per condition *if justified*, after a pilot variance check. The
+  :data:`MIN_GAMES_JUSTIFIED` constant records that number so it is visible in code
+  rather than buried in a slide.
 """
 
 from __future__ import annotations
 
-import json
-import tomllib
-from dataclasses import dataclass, field, fields
-from pathlib import Path
-from typing import Any
+from dataclasses import dataclass, replace
+from typing import Any, Mapping
 
-#: Minimum games per condition justified by the brief (P1's code imports this).
-MIN_GAMES_JUSTIFIED: int = 170
+#: Brief section 11 target: "at least 170 games per condition if statistically
+#: justified". Not a default -- :attr:`ExperimentConfig.n_games` starts at 0 so a
+#: batch has to be sized deliberately.
+MIN_GAMES_JUSTIFIED = 170
 
-Z_95: float = 1.96
-
-# TODO-confirm with P1: whether win_rate_p0 is the primary metric.
-PRIMARY_METRIC: str = "win_rate_p0"
-# Exploratory metrics; interpret these as secondary to PRIMARY_METRIC.
-SECONDARY_METRICS: tuple[str, ...] = (
-    "win_rate_p1",
-    "draw_rate",
-    "collapse_rate",
-    "observe_usage",
-    "spread_usage",
-    "mean_length",
-    "stdev_length",
-    "mean_collapses",
-    "mean_observe_moves",
-    "mean_spread_moves",
-)
-STOPPING_RULE: str = (
-    "Fixed planned n; no early stopping; each game is subject to the per-game "
-    "max_plies cap."
-)
+#: Confidence level behind the default ``z`` in the Wilson interval: 1.96 is the
+#: two-sided 95% normal quantile.
+Z_95 = 1.96
 
 
 @dataclass(frozen=True, slots=True)
 class ConditionConfig:
-    """One experimental condition and the agents assigned to its players."""
+    """One experimental condition: the unit of the ablation.
+
+    Attributes
+    ----------
+    label:
+        Condition identifier, used as the JSONL filename stem and the plot legend.
+        Must stay stable once the ablation is frozen, because existing logs key off it.
+    level:
+        Engine level. ``0`` classical, ``1`` adds spread, ``2`` adds rejoin.
+    allow_observe:
+        The studied feature: is voluntary measurement available?
+    agent_kinds:
+        ``(player_0, player_1)`` agent kinds, e.g. ``("prob", "random")``.
+    description:
+        One line for the report and for the plot subtitle.
+    """
 
     label: str
     level: int
     allow_observe: bool
     agent_kinds: tuple[str, str]
-    description: str
-
-    def __post_init__(self) -> None:
-        if not isinstance(self.label, str) or not self.label:
-            raise ValueError("label must be a non-empty string")
-        if not isinstance(self.level, int) or isinstance(self.level, bool):
-            raise ValueError("level must be an integer")
-        if self.level not in (0, 1, 2):
-            raise ValueError(f"level must be 0, 1 or 2; got {self.level!r}")
-        if not isinstance(self.allow_observe, bool):
-            raise ValueError("allow_observe must be a bool")
-        if not isinstance(self.agent_kinds, tuple) or len(self.agent_kinds) != 2:
-            raise ValueError("agent_kinds must be a two-item tuple")
-        if any(not isinstance(agent, str) or not agent for agent in self.agent_kinds):
-            raise ValueError("agent_kinds must contain non-empty strings")
-        if not isinstance(self.description, str):
-            raise ValueError("description must be a string")
-
-
-@dataclass(frozen=True)
-class ExperimentConfig:
-    """Complete configuration for an experiment run.
-
-    All fields are validated on construction. Use :meth:`from_dict` for lenient
-    loading (unknown keys ignored) or construct directly for strict validation.
-    """
-
-    experiment_id: str = "default"
-    version: str = "1"
-    agents: tuple[str, str] = ("random", "mcts")
-    agent_params: dict[str, dict[str, Any]] = field(default_factory=dict)
-    n_games: int = 10
-    base_seed: int = 0
-    board_size: int = 4
-    max_plies: int = 120
-    level: int = 2
-    allow_observe: bool = True
-    alternate_seats: bool = True
-    engine_kind: str = "toy"
-    output_dir: str = "results"
-    export_replays: bool = False
-    log_level: str = "INFO"
-    timeout_seconds: float | None = None
     description: str = ""
 
     def __post_init__(self) -> None:
-        if not self.experiment_id:
-            raise ValueError("experiment_id must be non-empty")
-        if self.n_games < 1:
-            raise ValueError(f"n_games must be >= 1, got {self.n_games}")
-        if self.board_size < 4:
-            raise ValueError(f"board_size must be >= 4, got {self.board_size}")
-        if self.max_plies < 1:
-            raise ValueError(f"max_plies must be >= 1, got {self.max_plies}")
         if self.level not in (0, 1, 2):
-            raise ValueError(f"level must be 0, 1 or 2, got {self.level}")
-        if self.base_seed < 0:
-            raise ValueError(f"base_seed must be >= 0, got {self.base_seed}")
-        if self.timeout_seconds is not None and self.timeout_seconds <= 0:
+            raise ValueError(f"level must be 0, 1 or 2; got {self.level!r}")
+        if len(self.agent_kinds) != 2:
             raise ValueError(
-                f"timeout_seconds must be > 0 or None, got {self.timeout_seconds}"
-            )
-        if len(self.agents) != 2:
-            raise ValueError(
-                f"agents must agree on exactly 2 entries; got {len(self.agents)}"
+                f"agent_kinds must name two players; got {self.agent_kinds!r}"
             )
 
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> ExperimentConfig:
-        """Construct from a dict, ignoring unknown keys."""
-        known = {f.name for f in fields(cls)}
-        kwargs = {k: v for k, v in data.items() if k in known}
-        # agents comes as a list from JSON/TOML — convert to tuple
-        if "agents" in kwargs and isinstance(kwargs["agents"], list):
-            kwargs["agents"] = tuple(kwargs["agents"])
-        return cls(**kwargs)
+    @property
+    def filename(self) -> str:
+        return f"{self.label}.jsonl"
 
-    def to_dict(self) -> dict[str, Any]:
-        """Serialize to a JSON-safe dict."""
-        result: dict[str, Any] = {}
-        for f in fields(self):
-            val = getattr(self, f.name)
-            if isinstance(val, tuple):
-                val = list(val)
-            result[f.name] = val
-        return result
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "level": self.level,
+            "allow_observe": self.allow_observe,
+            "agent_kinds": list(self.agent_kinds),
+            "description": self.description,
+        }
 
 
-def load_config(path: str | Path) -> ExperimentConfig:
-    """Load configuration from a JSON or TOML file.
+@dataclass(frozen=True, slots=True)
+class ExperimentConfig:
+    """Everything needed to run one experiment reproducibly.
 
-    Raises FileNotFoundError if the path does not exist, ValueError for parse errors
-    or invalid configuration values.
+    Attributes
+    ----------
+    name:
+        Experiment name; used in output paths and plot titles.
+    condition:
+        The single condition to run.
+    seeds:
+        Explicit seed list. Explicit beats a seed *count* here: the exact seeds are
+        part of the reproducibility record, and a regenerated batch must use the same
+        ones.
+    n_games:
+        Number of games planned. ``0`` means "not yet sized" -- the default forces a
+        deliberate choice.
+    time_budget_s:
+        Optional wall-clock budget per game, in seconds, used by the CLI scripts to
+        stop a batch that is clearly too slow (brief Gate 4).
+    board_size:
+        Board edge length passed to the engine.
+    max_plies:
+        Per-game ply cap.
+    z:
+        Two-sided normal quantile for confidence intervals.
+    notes:
+        Free-text provenance, e.g. "toy engine, Gate 2 pending".
     """
-    p = Path(path)
-    if not p.exists():
-        raise FileNotFoundError(f"config file not found: {p}")
-    text = p.read_text(encoding="utf-8")
-    if p.suffix.lower() == ".toml":
-        try:
-            data = tomllib.loads(text)
-        except tomllib.TOMLDecodeError as exc:
-            raise ValueError(f"invalid TOML in {p}: {exc}") from exc
-    else:
-        try:
-            data = json.loads(text)
-        except json.JSONDecodeError as exc:
-            raise ValueError(f"invalid JSON in {p}: {exc}") from exc
-    return ExperimentConfig.from_dict(data)
+
+    name: str = "unnamed"
+    condition: ConditionConfig | None = None
+    seeds: tuple[int, ...] = ()
+    n_games: int = 0
+    time_budget_s: float | None = None
+    board_size: int = 4
+    max_plies: int = 200
+    z: float = Z_95
+    notes: str = ""
+
+    def __post_init__(self) -> None:
+        if self.n_games < 0:
+            raise ValueError(f"n_games must be >= 0; got {self.n_games}")
+        if self.seeds and self.n_games and len(self.seeds) != self.n_games:
+            raise ValueError(
+                f"seeds ({len(self.seeds)}) and n_games ({self.n_games}) disagree"
+            )
+        if self.z <= 0:
+            raise ValueError(f"z must be > 0; got {self.z}")
+
+    # -- derived views -----------------------------------------------------
+
+    @property
+    def games(self) -> int:
+        """Games actually to be played: the explicit seeds, else ``n_games``."""
+        return len(self.seeds) if self.seeds else self.n_games
+
+    def seed_list(self, base_seed: int = 0) -> tuple[int, ...]:
+        """Return ``n_games`` seeds starting at ``base_seed``.
+
+        Used when a run wants generated seeds instead of an explicit list. The result
+        is deterministic in ``(base_seed, n_games)``.
+        """
+        if self.seeds:
+            return self.seeds
+        return tuple(base_seed + offset for offset in range(self.n_games))
+
+    def engine_kwargs(self) -> Mapping[str, Any]:
+        """Kwargs for the engine constructor for this configuration."""
+        if self.condition is None:
+            raise ValueError(f"experiment {self.name!r} has no condition set")
+        return {
+            "level": self.condition.level,
+            "allow_observe": self.condition.allow_observe,
+            "board_size": self.board_size,
+            "max_plies": self.max_plies,
+        }
+
+    def with_seeds(self, seeds: tuple[int, ...]) -> "ExperimentConfig":
+        """Copy with a different seed list, keeping ``n_games`` consistent."""
+        return replace(self, seeds=tuple(seeds), n_games=len(seeds))
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "condition": self.condition.to_json() if self.condition else None,
+            "seeds": list(self.seeds),
+            "n_games": self.n_games,
+            "games": self.games,
+            "time_budget_s": self.time_budget_s,
+            "board_size": self.board_size,
+            "max_plies": self.max_plies,
+            "z": self.z,
+            "notes": self.notes,
+            "min_games_justified": MIN_GAMES_JUSTIFIED,
+        }
 
 
-def save_config(config: ExperimentConfig, path: str | Path) -> None:
-    """Save configuration to a JSON file."""
-    p = Path(path)
-    p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
-
-
-def ablation_label(agent_a: str, agent_b: str, observe: bool) -> str:
-    """Build the stable label for one supported Observe ablation cell."""
-    valid_first: set[str] = {"mcts", "prob"}
-    if agent_a not in valid_first:
-        raise ValueError(
-            f"unsupported agent kind for first position: {agent_a!r}; "
-            f"expected one of {valid_first}"
-        )
-    if agent_b not in {"random", "mcts", "prob"} or agent_b == agent_a:
-        raise ValueError(
-            f"unsupported agent kind for second position: {agent_b!r}; "
-            "expected random or the other of mcts/prob"
-        )
-    suffix = "obs" if observe else "noobs"
-    return f"ablation-{agent_a}-vs-{agent_b}-{suffix}"
-
-
-# Engine level numbers adopted from previous implementation.
-# TODO-confirm with P1/P5 whether Rejoin is disabled when Observe is off.
+#: The four conditions of the core ablation, in reporting order.
+#:
+#: The comparison that matters is classical vs. quantum-enabled at *matched* agent
+#: strength, with and without the Observe option. Everything except ``level`` and
+#: ``allow_observe`` is held constant, which is the whole point of listing them
+#: side by side.
 CONDITIONS: tuple[ConditionConfig, ...] = (
     ConditionConfig(
         label="classical-random-vs-random",
         level=0,
         allow_observe=False,
         agent_kinds=("random", "random"),
-        description="Classical baseline: random versus random.",
+        description="Classical baseline: random vs random, no uncertainty mechanics.",
     ),
     ConditionConfig(
         label="classical-mcts-vs-random",
         level=0,
         allow_observe=False,
         agent_kinds=("mcts", "random"),
-        description="Classical baseline: MCTS versus random.",
+        description="Classical baseline: tree search vs random, no uncertainty mechanics.",
     ),
     ConditionConfig(
-        label=ablation_label("mcts", "random", True),
+        label="quantum-observe-vs-random",
         level=2,
         allow_observe=True,
-        agent_kinds=("mcts", "random"),
-        description="MCTS versus random with Observe enabled.",
+        agent_kinds=("observe", "random"),
+        description="Quantum-enabled with voluntary Observe vs random.",
     ),
     ConditionConfig(
-        label=ablation_label("mcts", "random", False),
-        level=2,
-        allow_observe=False,
-        agent_kinds=("mcts", "random"),
-        description="MCTS versus random with Observe disabled.",
-    ),
-    ConditionConfig(
-        label=ablation_label("prob", "random", True),
-        level=2,
-        allow_observe=True,
-        agent_kinds=("prob", "random"),
-        description="Probability-aware agent versus random with Observe enabled.",
-    ),
-    ConditionConfig(
-        label=ablation_label("prob", "random", False),
+        label="quantum-prob-vs-random",
         level=2,
         allow_observe=False,
         agent_kinds=("prob", "random"),
-        description="Probability-aware agent versus random with Observe disabled.",
+        description="Quantum-enabled, probability-aware search vs random, no Observe.",
     ),
 )
 
 
 def condition_by_label(label: str) -> ConditionConfig:
-    """Look up a registered condition by label."""
+    """Look up a condition in :data:`CONDITIONS` by label.
+
+    Raises
+    ------
+    KeyError
+        If the label is unknown -- a typo must not silently run the wrong condition.
+    """
     for condition in CONDITIONS:
         if condition.label == label:
             return condition
@@ -240,30 +235,11 @@ def condition_by_label(label: str) -> ConditionConfig:
     raise KeyError(f"unknown condition {label!r}; known labels: {known}")
 
 
-def seed_list(base_seed: int, n: int) -> list[int]:
-    """Generate deterministic consecutive seeds."""
-    return [base_seed + offset for offset in range(n)]
-
-
-def matched_seeds(n: int) -> tuple[list[int], list[int]]:
-    """Return equal consecutive seed lists for two matched arms."""
-    seeds = seed_list(0, n)
-    return seeds, seeds.copy()
-
-
 __all__ = [
-    "ExperimentConfig",
+    "CONDITIONS",
     "MIN_GAMES_JUSTIFIED",
     "Z_95",
-    "PRIMARY_METRIC",
-    "SECONDARY_METRICS",
-    "STOPPING_RULE",
     "ConditionConfig",
-    "CONDITIONS",
-    "ablation_label",
+    "ExperimentConfig",
     "condition_by_label",
-    "load_config",
-    "save_config",
-    "seed_list",
-    "matched_seeds",
 ]

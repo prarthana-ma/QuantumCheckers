@@ -1,305 +1,305 @@
-"""Probability-aware Live MCTS agent for QuantumCheckers.
+"""Seeded, state-tree UCT agent for the live paper-based engine.
 
-LiveMCTSAgent extends the conventional MCTS baseline by modelling quantum
-probability in the search tree.  Where the conventional MctsBaselineAgent treats
-rollout actions uniformly and evaluates using only the max-chance square, this
-agent maintains a distribution over squares for spread pieces and uses
-probability-aware rollout and evaluation.
-
-The agent is seeded from the room seed so that server games are reproducible.
+The live search treats each sampled successor returned by ``engine.apply`` as a
+separate chance branch below its action. Values are always stored from the root
+player's point of view; selection maximizes on the root player's turns and minimizes
+on the opponent's turns. This also handles same-player capture continuations.
 """
 
 from __future__ import annotations
 
 import math
 import random
-import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, is_dataclass
 from typing import Any, Sequence
 
-from qcheckers.agents.base import Agent, fallback_action
-from qcheckers.engine.protocol import (
-    Action,
-    GameState,
-    clone_engine,
-)
-from qcheckers.engine.toy import DeterministicToyEngine
-
-#: Default UCT exploration constant (sqrt(2), the standard UCB1-tuned value).
-DEFAULT_UCT_C: float = 1.41
-
-#: Default MCTS iterations per move.
-DEFAULT_ITERATIONS: int = 24
-
-#: Default rollout ply cap.
-DEFAULT_ROLLOUT_STEPS: int = 32
+from qcheckers.engine.paper import BranchLimitError
 
 
-def uct_score(total_value: float, visits: int, parent_visits: int, c: float) -> float:
-    """UCT score for a child node.
-
-    ``total_value`` is the accumulated reward, ``visits`` the child's visit count,
-    ``parent_visits`` the parent's visit count, and ``c`` the exploration constant.
-
-    Exploitation term: mean reward. Exploration term: c * sqrt(ln(parent) / child).
-    """
-    if visits == 0:
-        return float("inf")
-    exploitation = total_value / visits
-    exploration = c * math.sqrt(math.log(max(parent_visits, 1)) / visits)
-    return exploitation + exploration
+@dataclass
+class _ActionStats:
+    visits: int = 0
+    value_sum: float = 0.0
+    outcomes: dict[Any, "_Node"] = field(default_factory=dict)
+    blocked: bool = False
 
 
 @dataclass
 class _Node:
-    """One node in the MCTS tree."""
-    state: GameState
-    parent: _Node | None = None
-    action_from_parent: Action | None = None
-    children: list[_Node] = field(default_factory=list)
+    state: Any
+    actions: tuple[Any, ...]
+    stats: dict[Any, _ActionStats] = field(default_factory=dict)
     visits: int = 0
-    total_value: float = 0.0
-    # Legal actions not yet expanded
-    untried: list[Action] = field(default_factory=list)
+
+
+def _freeze(value: Any) -> Any:
+    """Build a stable state key for hashable or ordinary value-object states."""
+    try:
+        hash(value)
+    except (TypeError, ValueError):
+        pass
+    else:
+        return value
+    if is_dataclass(value):
+        return (type(value).__qualname__, tuple((f.name, _freeze(getattr(value, f.name))) for f in fields(value)))
+    if isinstance(value, dict):
+        return tuple(sorted((_freeze(k), _freeze(v)) for k, v in value.items()))
+    if isinstance(value, (tuple, list)):
+        return tuple(_freeze(item) for item in value)
+    if isinstance(value, set):
+        return tuple(sorted((_freeze(item) for item in value), key=repr))
+    if hasattr(value, "__dict__"):
+        return (type(value).__qualname__, _freeze(vars(value)))
+    return repr(value)
+
+
+def _branch_count(state: Any) -> int:
+    """Estimate sparse-state work from a paper engine's retained amplitudes."""
+    branches = getattr(state, "amplitudes", None)
+    if branches is None:
+        branches = getattr(state, "branches", None)
+    try:
+        return max(1, len(branches))
+    except TypeError:
+        return 1
+
+
+def evaluate_state(state: Any, player: int, *, board_size: int) -> float:
+    """Return bounded zero-sum material/progress value in ``player``'s perspective.
+
+    Piece value is summed over site probabilities, so a piece's contribution shrinks
+    with its survival probability. King promotion and normalized forward progress
+    provide small positional terms. Captured-history metadata is deliberately ignored.
+    """
+    if board_size < 2:
+        raise ValueError("board_size must be at least 2")
+    totals = [0.0, 0.0]
+    for piece in getattr(state, "pieces", ()):
+        owner = int(piece.owner)
+        for square, chance in piece.sites:
+            row = int(square[0])
+            progress = (board_size - 1 - row) / (board_size - 1) if owner == 0 else row / (board_size - 1)
+            king_chance = None
+            king_at = getattr(piece, "king_chance_at", None)
+            if callable(king_at):
+                king_chance = float(king_at(square))
+            elif bool(getattr(piece, "is_king", False)):
+                king_chance = float(chance)
+            else:
+                king_sites = dict(getattr(piece, "king_sites", ()))
+                king_chance = float(king_sites.get(square, 0.0))
+            # Clamp malformed marginals defensively; engines should supply valid values.
+            weight = max(0.0, float(chance))
+            king_weight = min(weight, max(0.0, king_chance))
+            totals[owner] += weight * (1.0 + 0.25 * (king_weight / weight if weight else 0.0) + 0.08 * progress)
+    material = totals[0] + totals[1]
+    if material <= 1e-12:
+        return 0.0
+    p0_value = max(-1.0, min(1.0, (totals[0] - totals[1]) / material))
+    return p0_value if player == 0 else -p0_value
 
 
 class LiveMCTSAgent:
-    """Probability-aware Monte Carlo Tree Search agent for QuantumCheckers.
-
-    Parameters
-    ----------
-    engine:
-        Engine for state transitions. Must support ``clone()`` for isolated search.
-    seed:
-        Seed for the agent's private RNG (rollout action sampling).
-    iterations:
-        MCTS iterations per move (computational budget).
-    tree_depth:
-        Maximum depth (in plies) to which the tree is searched. Deeper search
-        captures more quantum branching but costs more compute.
-    rollout_steps:
-        Maximum ply cap for one quantum-aware rollout.
-    name:
-        Label written into game records.
-    """
+    """UCT search with chance-specific state branches and random legal rollouts."""
 
     def __init__(
         self,
-        engine: DeterministicToyEngine,
+        engine: Any,
         *,
         seed: int = 0,
-        exploration: float = DEFAULT_UCT_C,
-        iterations: int = DEFAULT_ITERATIONS,
-        tree_depth: int = 4,
-        rollout_steps: int = 8,
+        iterations: int = 200,
+        tree_depth: int = 8,
+        rollout_steps: int = 48,
+        branch_work_budget: int = 1024,
+        exploration: float = math.sqrt(2.0),
         name: str = "live-mcts",
     ) -> None:
         if iterations < 1:
-            raise ValueError(f"iterations must be >= 1, got {iterations}")
-        if rollout_steps < 1:
-            raise ValueError(f"rollout_steps must be >= 1, got {rollout_steps}")
-        if tree_depth < 1:
-            raise ValueError(f"tree_depth must be >= 1, got {tree_depth}")
+            raise ValueError("iterations must be positive")
+        if tree_depth < 1 or rollout_steps < 0:
+            raise ValueError("tree_depth must be positive and rollout_steps non-negative")
+        if branch_work_budget < 1:
+            raise ValueError("branch_work_budget must be positive")
         if exploration < 0:
-            raise ValueError(f"exploration must be >= 0, got {exploration}")
-        self.name = name
+            raise ValueError("exploration must be non-negative")
+        self.engine = engine
         self.seed = int(seed)
-        self.exploration = float(exploration)
         self.iterations = int(iterations)
         self.tree_depth = int(tree_depth)
         self.rollout_steps = int(rollout_steps)
-        self._base_engine = engine
-        self._engine = engine
-        self._rng = random.Random(self.seed)
-        #: Board size for heuristic evaluation
-        size = getattr(engine, "board_size", 0)
-        self.board_size = int(size) if size else 4
-        #: Diagnostics from the last search
-        self.last_diagnostics: dict[str, Any] = {}
+        self.branch_work_budget = int(branch_work_budget)
+        self.exploration = float(exploration)
+        self.name = name
 
-    # -- Agent protocol ----------------------------------------------------
-
-    def decide(self, state: GameState, legal: Sequence[Action]) -> Action:
-        """Select an action via probability-aware MCTS. Returns one of ``legal``."""
-        if not legal:
-            raise ValueError(
-                f"{type(self).__name__} received no legal actions on ply {state.ply}"
-            )
-        if len(legal) == 1:
-            return legal[0]
-
-        # Isolate search from the live engine and reset RNG for reproducibility
-        self._engine = clone_engine(self._base_engine, self.seed)
-        self._rng = random.Random(self.seed)
-
-        root = _Node(state=state, untried=list(legal))
-        root_player = state.turn
-
-        simulations = 0
-        expansions = 0
-        completed_rollouts = 0
-        start = time.perf_counter()
-
-        for _ in range(self.iterations):
-            node = self._select(root)
-            if node.untried:
-                node = self._expand(node)
-                expansions += 1
-            score = self._rollout(node.state, root_player)
-            completed_rollouts += 1
-            self._backprop(node, score)
-            simulations += 1
-
-        elapsed = time.perf_counter() - start
-
-        # Robust child: most visited; tie-break by mean value, then lower index
-        best_child = None
-        best_visits = -1
-        best_mean = float("-inf")
-        for child in root.children:
-            if child.visits > best_visits:
-                best_visits = child.visits
-                best_child = child
-                best_mean = child.total_value / child.visits if child.visits else 0.0
-            elif child.visits == best_visits and child.visits > 0:
-                mean = child.total_value / child.visits
-                if mean > best_mean:
-                    best_mean = mean
-                    best_child = child
-
-        self.last_diagnostics = {
-            "simulations": simulations,
-            "expansions": expansions,
-            "completed_rollouts": completed_rollouts,
-            "elapsed_seconds": elapsed,
-            "root_visits": root.visits,
-            "n_root_children": len(root.children),
-        }
-
-        if best_child is None or best_child.action_from_parent is None:
-            # Fallback (should not happen): use the shared fallback chooser
-            return fallback_action(list(legal), preferred="capture")
-
-        return best_child.action_from_parent
-
-    # -- MCTS stages -------------------------------------------------------
-
-    def _select(self, root: _Node) -> _Node:
-        """Selection: descend via UCT until a node with untried actions or a leaf."""
-        node = root
-        while not node.untried and node.children:
-            node = self._best_uct_child(node)
-        return node
-
-    def _best_uct_child(self, node: _Node) -> _Node:
-        """Select the child with the highest UCT score."""
-        best = node.children[0]
-        best_score = float("-inf")
-        for child in node.children:
-            score = uct_score(
-                child.total_value, child.visits, node.visits, self.exploration
-            )
-            if score > best_score:
-                best_score = score
-                best = child
-        return best
-
-    def _expand(self, node: _Node) -> _Node:
-        """Expansion: pop one untried action and create its child node."""
-        action = node.untried.pop(0)
+    def _private_engine(self) -> Any:
+        clone_method = getattr(self.engine, "clone", None)
+        if not callable(clone_method):
+            raise TypeError("live MCTS requires an engine with clone(seed=...) support")
         try:
-            transition = self._engine.apply(node.state, action)
-        except ValueError:
-            # Engine rejected the action — return the node unchanged
-            node.untried.insert(0, action)
-            return node
-        child = _Node(
-            state=transition.state,
-            parent=node,
-            action_from_parent=action,
-            untried=list(self._engine.legal_actions(transition.state)),
-        )
-        node.children.append(child)
-        return child
+            clone = clone_method(seed=self.seed)
+        except TypeError:
+            clone = clone_method(self.seed)
+        if clone is self.engine:
+            raise TypeError("engine.clone must return an independent simulation engine")
+        # Engine clones should drop hardware samplers. Enforce this where the sampler
+        # is a normal mutable attribute, so simulation can never schedule live jobs.
+        if hasattr(clone, "sampler"):
+            clone.sampler = None
+        return clone
 
-    def _rollout(self, state: GameState, root_player: int) -> float:
-        """Quantum-aware rollout: probability-weighted simulation with a ply cap.
+    def _terminal_value(self, engine: Any, state: Any, root_player: int) -> float | None:
+        outcome = engine.outcome(state)
+        if outcome is None:
+            return None
+        winner = outcome.winner
+        if winner is None:
+            return 0.0
+        return 1.0 if winner == root_player else -1.0
 
-        Returns +1 if root_player wins, -1 if root_player loses, 0 for a draw or
-        depth cut (evaluated by the heuristic).
-        """
+    def _new_node(self, engine: Any, state: Any) -> _Node:
+        return _Node(state, tuple(engine.legal_actions(state)))
+
+    def _rollout(
+        self,
+        engine: Any,
+        state: Any,
+        root_player: int,
+        rng: random.Random,
+        *,
+        branch_work_remaining: int,
+    ) -> float:
         current = state
         for _ in range(self.rollout_steps):
-            outcome = self._engine.outcome(current)
-            if outcome is not None:
-                if outcome.winner is None:
-                    return 0.0
-                return 1.0 if outcome.winner == root_player else -1.0
-            legal = self._engine.legal_actions(current)
-            if not legal:
-                return 0.0
-            # Probability-aware: sample an action weighted by piece chances
-            chosen = self._rng.choice(list(legal))
-            try:
-                current = self._engine.apply(current, chosen).state
-            except ValueError:
-                return 0.0
-        # Depth cut: use heuristic evaluation clamped to [-1, 1]
-        return max(-1.0, min(1.0, self._evaluate(current, root_player)))
-
-    def _evaluate(self, state: GameState, player: int) -> float:
-        """Probability-aware heuristic evaluation from ``player``'s perspective.
-
-        Uses the full chance distribution per piece (not just the max-chance square),
-        so the agent respects quantum uncertainty in its evaluation.
-        """
-        score = 0.0
-        for piece in state.pieces:
-            sign = 1.0 if piece.owner == player else -1.0
-            # Material: expected material using the full distribution
-            expected = sum(w for _, w in piece.sites)
-            score += sign * expected
-            # Advance: rows progressed toward the opponent's edge
-            rows = [sq[0] for sq in piece.squares]
-            if piece.owner == 0:
-                advance = (len(rows) - min(rows)) if rows else 0
+            terminal = self._terminal_value(engine, current, root_player)
+            if terminal is not None:
+                return terminal
+            actions = tuple(engine.legal_actions(current))
+            if not actions:
+                # Well-formed engines report no-move losses through outcome().
+                return evaluate_state(current, root_player, board_size=engine.board_size)
+            candidates = list(actions)
+            rng.shuffle(candidates)
+            for action in candidates:
+                work = _branch_count(current)
+                if work > branch_work_remaining:
+                    return evaluate_state(current, root_player, board_size=engine.board_size)
+                branch_work_remaining -= work
+                try:
+                    current = engine.apply(current, action).state
+                    break
+                except BranchLimitError:
+                    # A capped transition is unavailable to this simulation. Try
+                    # another offered move; if every move is capped, stop at this state.
+                    continue
             else:
-                advance = max(rows) if rows else 0
-            score += sign * 0.05 * advance
-        # Capture penalty
-        score -= 0.20 * len(state.captured)
-        return score
+                return evaluate_state(current, root_player, board_size=engine.board_size)
+        terminal = self._terminal_value(engine, current, root_player)
+        if terminal is not None:
+            return terminal
+        return evaluate_state(current, root_player, board_size=engine.board_size)
 
-    # -- helpers -----------------------------------------------------------
+    def _select(self, node: _Node, rng: random.Random, root_player: int) -> Any:
+        unvisited = [
+            action for action in node.actions
+            if not node.stats[action].blocked and node.stats[action].visits == 0
+        ]
+        if unvisited:
+            return rng.choice(unvisited)
+        maximizing = node.state.turn == root_player
+        log_parent = math.log(max(1, node.visits))
+        best_score = -math.inf
+        best: list[Any] = []
+        for action in node.actions:
+            stats = node.stats[action]
+            if stats.blocked:
+                continue
+            mean = stats.value_sum / stats.visits
+            exploit = mean if maximizing else -mean
+            score = exploit + self.exploration * math.sqrt(log_parent / stats.visits)
+            if score > best_score + 1e-12:
+                best_score, best = score, [action]
+            elif abs(score - best_score) <= 1e-12:
+                best.append(action)
+        return rng.choice(best)
 
-    def reset(self, seed: int | None = None) -> None:
-        """Reset the RNG for reuse across games."""
-        if seed is not None:
-            self.seed = int(seed)
-        self._rng = random.Random(self.seed)
+    def decide(self, state: Any, legal: Sequence[Any]) -> Any:
+        offered = tuple(legal)
+        if not offered:
+            raise ValueError("no legal actions: game should have been terminal")
+        root_player = int(state.turn)
+        engine = self._private_engine()
+        rng = random.Random(self.seed)
+        root = _Node(state, offered, {action: _ActionStats() for action in offered})
+        for _ in range(self.iterations):
+            node = root
+            path: list[tuple[_Node, _ActionStats]] = []
+            depth = 0
+            branch_work_used = 0
+            branch_work_limit = max(self.branch_work_budget, _branch_count(state))
+            value = self._terminal_value(engine, node.state, root_player)
+            while value is None and node.actions and depth < self.tree_depth:
+                if len(node.actions) != len(node.stats):
+                    for action in node.actions:
+                        node.stats.setdefault(action, _ActionStats())
+                action = self._select(node, rng, root_player)
+                stats = node.stats[action]
+                work = _branch_count(node.state)
+                if branch_work_used + work > branch_work_limit:
+                    value = evaluate_state(node.state, root_player, board_size=engine.board_size)
+                    break
+                branch_work_used += work
+                try:
+                    next_state = engine.apply(node.state, action).state
+                except BranchLimitError:
+                    stats.blocked = True
+                    node.actions = tuple(candidate for candidate in node.actions if candidate != action)
+                    value = evaluate_state(node.state, root_player, board_size=engine.board_size)
+                    break
+                path.append((node, stats))
+                depth += 1
+                value = self._terminal_value(engine, next_state, root_player)
+                key = _freeze(next_state)
+                child = stats.outcomes.get(key)
+                if child is None:
+                    child = self._new_node(engine, next_state)
+                    stats.outcomes[key] = child
+                    node = child
+                    if value is None:
+                        value = self._rollout(
+                            engine,
+                            next_state,
+                            root_player,
+                            rng,
+                            branch_work_remaining=branch_work_limit - branch_work_used,
+                        )
+                    break
+                node = child
+            if value is None:
+                value = self._rollout(
+                    engine,
+                    node.state,
+                    root_player,
+                    rng,
+                    branch_work_remaining=branch_work_limit - branch_work_used,
+                )
+            for parent, stats in path:
+                parent.visits += 1
+                stats.visits += 1
+                stats.value_sum += value
 
-    def usage(self) -> dict[str, int]:
-        """Return diagnostics from the last search."""
-        return {
-            "simulations": self.last_diagnostics.get("simulations", 0),
-            "expansions": self.last_diagnostics.get("expansions", 0),
-        }
-
-    def __repr__(self) -> str:
-        return (
-            f"{type(self).__name__}(seed={self.seed}, iterations={self.iterations}, "
-            f"tree_depth={self.tree_depth}, name={self.name!r})"
-        )
-
-
-# Compile-time proof that the agent satisfies the shared interface.
-_: type[Agent] = LiveMCTSAgent
+        # Selection prioritizes untried edges, subject to the simulation budget.
+        # Retain a legal deterministic fallback defensively.
+        ranked = [
+            (action, root.stats[action])
+            for action in offered
+            if not root.stats[action].blocked
+        ]
+        if not ranked:
+            # All offered transitions exceeded the configured exact-state cap. Keep
+            # the protocol contract in this degenerate case; with alternatives, only
+            # the successfully simulated root actions above are eligible.
+            return offered[0]
+        return max(ranked, key=lambda pair: (pair[1].visits, pair[1].value_sum / pair[1].visits if pair[1].visits else -math.inf))[0]
 
 
-__all__ = [
-    "DEFAULT_ITERATIONS",
-    "DEFAULT_ROLLOUT_STEPS",
-    "DEFAULT_UCT_C",
-    "LiveMCTSAgent",
-    "uct_score",
-]
+__all__ = ["LiveMCTSAgent", "evaluate_state"]

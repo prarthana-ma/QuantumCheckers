@@ -514,24 +514,14 @@ class DeterministicToyEngine:
                 pieces = [p for p in pieces if p.piece_id != captured]
                 state = state.clone(captured=tuple(sorted(state.captured + (captured,))))
         elif isinstance(action, SpreadAction):
-            pieces = self._replace(
-                pieces,
-                action.piece_id,
-                action.sites,
-                coherence=self.decoherence_ticks if self.decoherence else None,
-            )
+            pieces = self._replace(pieces, action.piece_id, action.sites)
         elif isinstance(action, RejoinAction):
             pieces = self._replace(pieces, action.piece_id, [(action.target, 1.0)])
         elif isinstance(action, MergeAction):
             first = state.piece(action.piece_id)
             other = state.piece(action.other_piece_id)
             pieces = [p for p in pieces if p.piece_id != action.other_piece_id]
-            pieces = self._replace(
-                pieces,
-                action.piece_id,
-                _merge_sites(first.sites, other.sites),
-                coherence=self.decoherence_ticks if self.decoherence else None,
-            )
+            pieces = self._replace(pieces, action.piece_id, _merge_sites(first.sites, other.sites))
         elif isinstance(action, ObserveAction):
             piece = state.piece(action.piece_id)
             if not piece.is_spread:
@@ -571,22 +561,9 @@ class DeterministicToyEngine:
 
     @staticmethod
     def _replace(
-        pieces: list[Piece],
-        piece_id: str,
-        sites: Sequence[tuple[Square, float]],
-        *,
-        coherence: int | None = None,
+        pieces: list[Piece], piece_id: str, sites: Sequence[tuple[Square, float]]
     ) -> list[Piece]:
-        return [
-            Piece(
-                p.piece_id,
-                p.owner,
-                tuple((square, float(weight)) for square, weight in sites),
-                coherence,
-            )
-            if p.piece_id == piece_id else p
-            for p in pieces
-        ]
+        return [p.with_sites(sites) if p.piece_id == piece_id else p for p in pieces]
 
     def _tick_coherence(
         self, pieces: list[Piece], action: Action, ply: int
@@ -605,25 +582,11 @@ class DeterministicToyEngine:
             if not piece.is_spread:
                 aged.append(piece)
                 continue
-            is_fresh = (
-                piece.piece_id == action.piece_id
-                and isinstance(action, (SpreadAction, MergeAction))
-            )
-            if is_fresh:
-                aged.append(
-                    Piece(
-                        piece.piece_id,
-                        piece.owner,
-                        piece.sites,
-                        self.decoherence_ticks,
-                    )
-                )
+            fresh = piece.piece_id == action.piece_id and piece.coherence is None
+            if fresh:
+                aged.append(piece.with_sites(piece.sites, self.decoherence_ticks))
                 continue
-            remaining = (
-                piece.coherence
-                if piece.coherence is not None
-                else self.decoherence_ticks
-            ) - 1
+            remaining = (piece.coherence or self.decoherence_ticks) - 1
             if remaining <= 0:
                 sampled = self._sample_sites(piece.sites)
                 events.append(
@@ -637,9 +600,9 @@ class DeterministicToyEngine:
                         probability=sampled[1],
                     )
                 )
-                aged.append(Piece(piece.piece_id, piece.owner, ((sampled[0], 1.0),)))
+                aged.append(piece.with_sites([(sampled[0], 1.0)]))
             else:
-                aged.append(Piece(piece.piece_id, piece.owner, piece.sites, remaining))
+                aged.append(piece.with_sites(piece.sites, remaining))
         return aged, events
 
     def _sample_sites(self, sites: tuple[tuple[Square, float], ...]) -> tuple[Square, float]:
@@ -725,7 +688,7 @@ class DeterministicToyEngine:
                     "owner": p.owner,
                     "sites": [[list(s), w] for s, w in p.sites],
                     "uncertain": p.is_spread,
-                    "coherence": p.coherence if hasattr(p, "coherence") else None,
+                    "coherence": p.coherence,
                 }
                 for p in state.pieces
             ],
