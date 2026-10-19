@@ -14,7 +14,7 @@ Conventions
 * Outcomes use ``winner is None`` for a draw and ``winner in (0, 1)`` for a win.
 * Randomness is owned by the engine; agents never call the global ``random`` module
   for engine transitions (they may use an injected RNG for their own search).
-"""Core game protocol and value types for the Quantum Checkers study.
+"""Core game protocol and value types for the Quantum Checkers study."""
 
 Owner: **Person A -- rules and engine guardian**. Person A owns this file and
 ``toy.py`` / ``adapter.py``. Per the team plan, no one else may change core rule

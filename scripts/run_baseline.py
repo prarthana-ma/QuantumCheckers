@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+import dataclasses
 import time
 from pathlib import Path
 from typing import Sequence
@@ -188,29 +189,29 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.agent_a is not None:
         agents = [config.agents[0], config.agents[1]]
         agents[0] = args.agent_a
-        config.agents = tuple(agents)
+        config = dataclasses.replace(config, agents=tuple(agents))
     if args.agent_b is not None:
         agents = [config.agents[0], config.agents[1]]
         agents[1] = args.agent_b
-        config.agents = tuple(agents)
+        config = dataclasses.replace(config, agents=tuple(agents))
     if args.games is not None:
-        config.n_games = args.games
+        config = dataclasses.replace(config, n_games=args.games)
     if args.base_seed is not None:
-        config.base_seed = args.base_seed
+        config = dataclasses.replace(config, base_seed=args.base_seed)
     if args.board_size is not None:
-        config.board_size = args.board_size
+        config = dataclasses.replace(config, board_size=args.board_size)
     if args.max_plies is not None:
-        config.max_plies = args.max_plies
+        config = dataclasses.replace(config, max_plies=args.max_plies)
     if args.level is not None:
-        config.level = args.level
+        config = dataclasses.replace(config, level=args.level)
     if args.results_dir is not None:
-        config.output_dir = args.results_dir
+        config = dataclasses.replace(config, output_dir=args.results_dir)
     if args.replays:
-        config.export_replays = True
+        config = dataclasses.replace(config, export_replays=True)
     if args.no_alternate:
-        config.alternate_seats = False
+        config = dataclasses.replace(config, alternate_seats=False)
     if args.experiment_id is not None:
-        config.experiment_id = args.experiment_id
+        config = dataclasses.replace(config, experiment_id=args.experiment_id)
 
     if config.n_games < 1:
         print("error: n_games must be >= 1", file=sys.stderr)

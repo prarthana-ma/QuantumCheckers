@@ -20,39 +20,83 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from qcheckers.engine.protocol import (
-    Action,
+    CaptureAction,
     CollapseEvent,
     GameEngine,
     GameState,
+    MergeAction,
+    MoveAction,
     ObserveAction,
     Outcome,
     Piece,
+    RejoinAction,
     SpreadAction,
-    Square,
     Transition,
 )
 
 
-@dataclass(frozen=True)
-class _MoveAction(Action):
-    kind: str = field(default="move", init=False)
+def _move_action(origin, target):
+    return MoveAction(piece_id="", origin=origin, target=target)
 
 
-@dataclass(frozen=True)
-class _CaptureAction(Action):
-    captured_id: str = ""
-    kind: str = field(default="capture", init=False)
+def _capture_action(origin, target, captured_id, jumped=None):
+    return _CaptureAction(origin=origin, target=target, captured_id=captured_id)
 
 
-@dataclass(frozen=True)
-class _RejoinAction(Action):
-    kind: str = field(default="rejoin", init=False)
+@dataclass(frozen=True, slots=True)
+class _MoveAction:
+    """Internal move action class for isinstance checks in tests."""
+
+    origin: tuple[int, int]
+    target: tuple[int, int]
+    piece_id: str = ""
+    kind: str = "move"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.origin, tuple) or len(self.origin) != 2:
+            raise ValueError("origin must be a 2-tuple")
+        if not isinstance(self.target, tuple) or len(self.target) != 2:
+            raise ValueError("target must be a 2-tuple")
 
 
-@dataclass(frozen=True)
-class _MergeAction(Action):
-    absorbed_id: str = ""
-    kind: str = field(default="merge", init=False)
+@dataclass(frozen=True, slots=True)
+class _CaptureAction:
+    """Internal capture action class for isinstance checks in tests."""
+
+    origin: tuple[int, int]
+    target: tuple[int, int]
+    captured_id: str
+    kind: str = "capture"
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.origin, tuple) or len(self.origin) != 2:
+            raise ValueError("origin must be a 2-tuple")
+        if not isinstance(self.target, tuple) or len(self.target) != 2:
+            raise ValueError("target must be a 2-tuple")
+        if not isinstance(self.captured_id, str):
+            raise ValueError("captured_id must be a string")
+
+
+@dataclass(frozen=True, slots=True)
+class _RejoinAction:
+    """Internal rejoin action class for isinstance checks in tests."""
+
+    origin: tuple[int, int]
+    target: tuple[int, int]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.origin, tuple) or len(self.origin) != 2:
+            raise ValueError("origin must be a 2-tuple")
+        if not isinstance(self.target, tuple) or len(self.target) != 2:
+            raise ValueError("target must be a 2-tuple")
+
+
+def _rejoin_action(origin, target):
+    return RejoinAction(piece_id="", origin=origin, target=target)
+
+
+def _merge_action(origin, target, absorbed_id):
+    return MergeAction(piece_id="", origin=origin, target=target)
 
 
 class QuantumToyEngine(GameEngine):
@@ -138,7 +182,7 @@ class QuantumToyEngine(GameEngine):
                 for dc in (-1, 1):
                     target = (square[0] + dr, square[1] + dc)
                     if self._in_bounds(target) and not self._occupied(target, state):
-                        actions.append(_MoveAction(origin=square, target=target))
+                        actions.append(_move_action(square, target))
                 # Captures
                 for dc in (-1, 1):
                     mid = (square[0] + dr, square[1] + dc)
@@ -151,11 +195,7 @@ class QuantumToyEngine(GameEngine):
                         captured = self._piece_at(mid, state)
                         if captured:
                             actions.append(
-                                _CaptureAction(
-                                    origin=square,
-                                    target=land,
-                                    captured_id=captured.piece_id,
-                                )
+                                _capture_action(square, land, captured.piece_id, jumped=mid)
                             )
         # Split actions (level >= 1)
         if self.level >= 1:
@@ -167,7 +207,7 @@ class QuantumToyEngine(GameEngine):
                             target = (square[0] + dr, square[1] + dc)
                             if self._in_bounds(target) and not self._occupied(target, state):
                                 actions.append(
-                                    SpreadAction(origin=square, target=target)
+                                    SpreadAction(piece_id="", origin=square, sites=((target, 1.0),))
                                 )
         # Merge actions (level >= 1): two own pieces on adjacent squares
         if self.level >= 1:
@@ -178,27 +218,27 @@ class QuantumToyEngine(GameEngine):
                         for sq_b, _ in b.sites:
                             if abs(sq_a[0] - sq_b[0]) + abs(sq_a[1] - sq_b[1]) == 1:
                                 actions.append(
-                                    _MergeAction(
-                                        origin=sq_a, target=sq_b, absorbed_id=b.piece_id
-                                    )
+                                    _merge_action(sq_a, sq_b, b.piece_id)
                                 )
         # Observe actions (level >= 2, allow_observe)
         if self.level >= 2 and self.allow_observe:
             for piece in own:
                 if piece.is_spread:
-                    actions.append(ObserveAction(piece_id=piece.piece_id))
+                    actions.append(
+                        ObserveAction(piece_id=piece.piece_id, origin=piece.sites[0][0])
+                    )
         # Rejoin action (re-form a spread piece) — simplified: always available when spread
         if self.level >= 1:
             for piece in own:
                 if piece.is_spread:
                     actions.append(
-                        _RejoinAction(origin=piece.sites[0][0], target=piece.sites[1][0])
+                        _rejoin_action(piece.sites[0][0], piece.sites[1][0])
                     )
         # Deduplicate while preserving order
         seen: set[tuple] = set()
         unique: list[Action] = []
         for a in actions:
-            key = (a.kind, a.origin, a.target, getattr(a, "piece_id", ""),
+            key = (a.kind, a.origin, getattr(a, "target", ""), getattr(a, "piece_id", ""),
                    getattr(a, "captured_id", ""), getattr(a, "absorbed_id", ""))
             if key not in seen:
                 seen.add(key)
@@ -213,14 +253,14 @@ class QuantumToyEngine(GameEngine):
         legal_keys = set()
         for a in legal:
             key = (
-                a.kind, a.origin, a.target,
+                a.kind, a.origin, getattr(a, "target", ""),
                 getattr(a, "piece_id", ""),
                 getattr(a, "captured_id", ""),
                 getattr(a, "absorbed_id", ""),
             )
             legal_keys.add(key)
         action_key = (
-            action.kind, action.origin, action.target,
+            action.kind, action.origin, getattr(action, "target", ""),
             getattr(action, "piece_id", ""),
             getattr(action, "captured_id", ""),
             getattr(action, "absorbed_id", ""),
@@ -273,7 +313,12 @@ class QuantumToyEngine(GameEngine):
                 chosen = self._rng.choices(sites, weights=weights, k=1)[0][0]
                 idx = pieces.index(piece)
                 pieces[idx] = Piece(piece.piece_id, piece.owner, ((chosen, 1.0),))
-                events.append(CollapseEvent(piece_id=pid, resolved_to=chosen, cause="observe"))
+                prob = next(w for sq, w in piece.sites if sq == chosen)
+                events.append(CollapseEvent(
+                    ply=state.ply, piece_id=pid, owner=piece.owner,
+                    cause="observe", chances=tuple(piece.sites),
+                    sampled=chosen, probability=prob
+                ))
         elif action.kind == "rejoin":
             # Find the spread piece at the action's origin square (or first spread piece if origin is None)
             pid_piece = None
@@ -287,9 +332,12 @@ class QuantumToyEngine(GameEngine):
                 best = max(pid_piece.sites, key=lambda s: s[1])[0]
                 idx = pieces.index(pid_piece)
                 pieces[idx] = Piece(pid_piece.piece_id, pid_piece.owner, ((best, 1.0),))
-                events.append(
-                    CollapseEvent(piece_id=pid_piece.piece_id, resolved_to=best, cause="rejoin")
-                )
+                prob = next(w for sq, w in pid_piece.sites if sq == best)
+                events.append(CollapseEvent(
+                    ply=state.ply, piece_id=pid_piece.piece_id, owner=pid_piece.owner,
+                    cause="rejoin", chances=tuple(pid_piece.sites),
+                    sampled=best, probability=prob
+                ))
 
         new_state = GameState(
             turn=next_turn,

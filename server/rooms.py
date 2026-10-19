@@ -466,7 +466,7 @@ class Room:
         # the game client can render a per-square counter. Empty when decoherence is off.
         coherence: dict[str, int] = {}
         for piece in self.state.pieces:
-            ticks = dict(self.state.coherence).get(piece.piece_id) if self.paper_rules else piece.coherence
+            ticks = dict(self.state.coherence).get(piece.piece_id) if self.paper_rules else getattr(piece, "coherence", None)
             if piece.is_spread and ticks is not None and piece.sites:
                 origin = piece.sites[0][0]
                 coherence[f"{origin[0]},{origin[1]}"] = ticks
