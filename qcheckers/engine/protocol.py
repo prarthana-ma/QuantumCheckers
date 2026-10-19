@@ -1,40 +1,20 @@
-"""Engine protocol — the shared contract between agents, runner, and engines.
-
+"""Shared value types and interface for Quantum Checkers engines.
 This module contains ONLY interfaces and value types. It holds no game rules and no
-authoritative engine logic. The authoritative engine is owned by **P5 (Prarthana)**,
-which implements :class:`GameEngine` against these definitions.
-
-Existing agents (P1) and the experiment runner (P3) already import from this module,
-so the names and signatures here are part of the project's integration surface.
-
+authoritative engine logic. The engine owner (P5) implements :class:`GameEngine` against
+these definitions; agents (P1), the experiment runner (P3) and the server import the
+immutable actions and state snapshots from here instead of implementing rules themselves.
 Conventions
 -----------
 * All actions are immutable value objects with a ``kind`` string.
 * States are treated as immutable snapshots; ``engine.apply`` returns a new state.
 * Outcomes use ``winner is None`` for a draw and ``winner in (0, 1)`` for a win.
-* Randomness is owned by the engine; agents never call the global ``random`` module
-  for engine transitions (they may use an injected RNG for their own search).
-"""Core game protocol and value types for the Quantum Checkers study."""
-
-Owner: **Person A -- rules and engine guardian**. Person A owns this file and
-``toy.py`` / ``adapter.py``. Per the team plan, no one else may change core rule
-logic or these types without Person A's agreement.
-
-Everything in this module is stdlib-only and side-effect free: no numpy, no global
-``random``. An engine instance owns its own seeded RNG (see
-:class:`qcheckers.engine.toy.DeterministicToyEngine`), so two engines constructed with
-the same seed produce the same game.
-
-Vocabulary note (deliberately careful, per the project brief): "spread", "chance",
-"collapse" and "rejoin" describe a *probability-carrying* board model. Whether the
-published game uses true amplitudes and phases, or classical probabilities only, is
-still **UNVERIFIED** until the paper and the upstream code are read (Gate 5). The toy
-engine implements the probability-only reading.
-"""Shared value types and interface for Quantum Checkers engines.
-
-The toy and paper engines own all rule decisions. Agents, the server, and experiment
-code consume this module's immutable actions and state snapshots instead of
-implementing rules themselves.
+* Randomness is owned by the engine; agents never call the global ``random`` module for
+  engine transitions (they may use an injected RNG for their own search).
+* Everything here is stdlib-only and side-effect free: no numpy, no global ``random``.
+Vocabulary note: "spread", "chance", "collapse" and "rejoin" describe a
+probability-carrying board model. Whether the published game uses true amplitudes and
+phases, or classical probabilities only, is still UNVERIFIED until the paper and the
+upstream code are read (Gate 5). The toy engine implements the probability-only reading.
 """
 
 from __future__ import annotations
