@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
+  <title id="title">QCheckers project architecture</title>
+  <desc id="desc">The shared toy game engine supports the experiment runner and FastAPI game server. The server exchanges state with the Next.js browser client. A separate Qiskit and Aer path demonstrates quantum circuits. As an opt-in exception, the game server may resolve one live collapse with a single measurement on IBM Quantum hardware when credentials are configured.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#a78bfa"/></marker>
+    <style>
+      .bg{fill:#09090b}.box{fill:#17171c;stroke:#8b5cf6;stroke-width:2;rx:16}.sep{fill:#111116;stroke:#475569;stroke-width:2;rx:16}.title{fill:#f4f4f5;font:600 21px 'Segoe UI',sans-serif}.body{fill:#c4c4ce;font:16px 'Segoe UI',sans-serif}.tag{fill:#a78bfa;font:600 13px 'Segoe UI',sans-serif;letter-spacing:1.3px}.line{fill:none;stroke:#a78bfa;stroke-width:3;marker-end:url(#arrow)}.dashed{fill:none;stroke:#94a3b8;stroke-width:2.5;stroke-dasharray:8 7;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect class="bg" width="1200" height="620"/>
+  <text x="48" y="52" class="tag">QCHECKERS · SYSTEM ARCHITECTURE</text>
+  <rect class="box" x="55" y="120" width="310" height="170"/>
+  <text x="82" y="160" class="tag">SHARED GAME CORE</text>
+  <text x="82" y="198" class="title">Deterministic toy engine</text>
+  <text x="82" y="232" class="body">Rules · piece weights · seeded outcomes</text>
+  <text x="82" y="260" class="body">Probability model; no amplitudes or phase</text>
+  <rect class="box" x="465" y="105" width="285" height="185"/>
+  <text x="492" y="145" class="tag">RESEARCH PATH</text>
+  <text x="492" y="183" class="title">Experiment runner</text>
+  <text x="492" y="217" class="body">Agents · matched games · JSONL</text>
+  <text x="492" y="245" class="body">Wilson intervals · replay verifier</text>
+  <rect class="box" x="465" y="340" width="285" height="185"/>
+  <text x="492" y="380" class="tag">GAME PATH · GOOGLE CLOUD RUN</text>
+  <text x="492" y="418" class="title">FastAPI game server</text>
+  <text x="492" y="452" class="body">Authoritative legal actions and state</text>
+  <text x="492" y="480" class="body">In-memory rooms · one instance</text>
+  <rect class="box" x="850" y="340" width="300" height="185"/>
+  <text x="877" y="380" class="tag">GAME CLIENT · VERCEL</text>
+  <text x="877" y="418" class="title">Next.js + TypeScript</text>
+  <text x="877" y="452" class="body">Board · lobby · rules · sound controls</text>
+  <text x="877" y="480" class="body">Renders server state · sends actions</text>
+  <path class="line" d="M365 188 H455"/>
+  <path class="line" d="M365 245 C405 245 420 432 455 432"/>
+  <path class="line" d="M750 432 H840" marker-start="url(#arrow)"/>
+  <text x="770" y="555" class="body">WebSocket carries actions and state updates</text>
+  <rect class="sep" x="55" y="370" width="310" height="155"/>
+  <text x="82" y="410" class="tag">SEPARATE QUANTUM DEMO</text>
+  <text x="82" y="448" class="title">Qiskit + local Aer</text>
+  <text x="82" y="482" class="body">Split · measurement · interference</text>
+  <text x="82" y="510" class="body">Not connected to game rules</text>
+</svg>
