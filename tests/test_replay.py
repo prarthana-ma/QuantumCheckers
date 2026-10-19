@@ -74,7 +74,8 @@ class TestActionToReplay:
 
 class TestEventToReplay:
     def test_collapse_event(self):
-        e = CollapseEvent(piece_id="p0-0", resolved_to=(2, 1), cause="observe")
+        e = CollapseEvent(ply=3, piece_id="p0-0", owner=0, cause="observe",
+                          chances=(( (0, 1), 1.0),), sampled=(2, 1), probability=1.0)
         r = event_to_replay(e, 3)
         assert r.piece_id == "p0-0"
         assert r.resolved_to == [2, 1]

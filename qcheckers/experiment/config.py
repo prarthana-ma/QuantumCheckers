@@ -15,10 +15,55 @@ from pathlib import Path
 from typing import Any, Sequence
 
 #: Minimum games per condition justified by the brief (P1's code imports this).
-MIN_GAMES_JUSTIFIED: int = 20
+MIN_GAMES_JUSTIFIED: int = 170
+
+#: Z-score for 95% confidence intervals (P2 statistics).
+Z_95: float = 1.96
+
+#: Primary metric for the ablation (P2 statistics).
+PRIMARY_METRIC: str = "win_rate_p0"
+
+#: Secondary metrics reported alongside the primary (P2 statistics).
+SECONDARY_METRICS: tuple[str, ...] = (
+    "win_rate_p1",
+    "draw_rate",
+    "collapse_rate",
+    "observe_usage",
+    "spread_usage",
+    "mean_length",
+    "stdev_length",
+    "mean_collapses",
+    "mean_observe_moves",
+    "mean_spread_moves",
+)
+
+#: Stopping rule description (P2 statistics).
+STOPPING_RULE: str = (
+    "Fixed planned n; no early stopping; each game is subject to the per-game "
+    "max_plies cap."
+)
 
 
-@dataclass
+@dataclass(frozen=True)
+class ConditionConfig:
+    """One experimental condition and the agents assigned to its players."""
+
+    label: str
+    level: int
+    allow_observe: bool
+    agent_kinds: tuple[str, str]
+    description: str
+
+    def __post_init__(self) -> None:
+        if not self.label:
+            raise ValueError("label must be non-empty")
+        if self.level not in (0, 1, 2):
+            raise ValueError(f"level must be 0, 1 or 2, got {self.level!r}")
+        if not isinstance(self.allow_observe, bool):
+            raise ValueError("allow_observe must be a bool")
+
+
+@dataclass(frozen=True)
 class ExperimentConfig:
     """Complete configuration for an experiment run.
 
@@ -63,7 +108,7 @@ class ExperimentConfig:
             )
         if len(self.agents) != 2:
             raise ValueError(
-                f"agents must have exactly 2 entries, got {len(self.agents)}"
+                f"agents must agree on exactly 2 entries; got {len(self.agents)}"
             )
 
     @classmethod
@@ -235,10 +280,11 @@ class ExperimentConfig:
 
 def ablation_label(agent_a: str, agent_b: str, observe: bool) -> str:
     """Build the stable label for one supported Observe ablation cell."""
-    if agent_a not in ("mcts", "prob") or agent_b != "random":
-        raise ValueError("ablation labels require mcts/prob against random")
-    if not isinstance(observe, bool):
-        raise ValueError("observe must be a bool")
+    valid_first: set[str] = {"mcts", "prob"}
+    if agent_a not in valid_first:
+        raise ValueError(f"unsupported agent kind for first position: {agent_a!r}; expected one of {valid_first}")
+    if agent_b not in {"random", "mcts", "prob"} or agent_b == agent_a:
+        raise ValueError(f"unsupported agent kind for second position: {agent_b!r}; expected random or the other of mcts/prob")
     suffix = "obs" if observe else "noobs"
     return f"ablation-{agent_a}-vs-{agent_b}-{suffix}"
 
@@ -247,20 +293,25 @@ def ablation_label(agent_a: str, agent_b: str, observe: bool) -> str:
 # TODO-confirm with P1/P5 whether Rejoin is disabled when Observe is off.
 CONDITIONS: tuple[ConditionConfig, ...] = (
     ConditionConfig(
-        "classical-random-vs-random",
-        0,
-        False,
-        ("random", "random"),
-        "Classical baseline: random versus random.",
+        label="classical-random-vs-random",
+        level=0,
+        allow_observe=False,
+        agent_kinds=("random", "random"),
+        description="Classical baseline: random versus random.",
     ),
     ConditionConfig(
-        "classical-mcts-vs-random",
-        0,
-        False,
-        ("mcts", "random"),
-        "Classical baseline: MCTS versus random.",
+        label="classical-mcts-vs-random",
+        level=0,
+        allow_observe=False,
+        agent_kinds=("mcts", "random"),
+        description="Classical baseline: MCTS versus random.",
     ),
     ConditionConfig(
+        label=ablation_label("mcts", "random", True),
+        level=2,
+        allow_observe=True,
+        agent_kinds=("mcts", "random"),
+        description="MCTS versus random with Observe enabled.",
         ablation_label("mcts", "random", True),
         2,
         True,
@@ -269,13 +320,18 @@ CONDITIONS: tuple[ConditionConfig, ...] = (
         "previous implementation.",
     ),
     ConditionConfig(
-        ablation_label("mcts", "random", False),
-        2,
-        False,
-        ("mcts", "random"),
-        "MCTS versus random with Observe disabled; Rejoin behavior TODO-confirm with P1/P5.",
+        label=ablation_label("mcts", "random", False),
+        level=2,
+        allow_observe=False,
+        agent_kinds=("mcts", "random"),
+        description="MCTS versus random with Observe disabled.",
     ),
     ConditionConfig(
+        label=ablation_label("prob", "random", True),
+        level=2,
+        allow_observe=True,
+        agent_kinds=("prob", "random"),
+        description="Probability-aware agent versus random with Observe enabled.",
         ablation_label("prob", "random", True),
         2,
         True,
@@ -284,12 +340,11 @@ CONDITIONS: tuple[ConditionConfig, ...] = (
         "adopted from previous implementation.",
     ),
     ConditionConfig(
-        ablation_label("prob", "random", False),
-        2,
-        False,
-        ("prob", "random"),
-        "Probability-aware agent versus random with Observe disabled; Rejoin behavior "
-        "TODO-confirm with P1/P5.",
+        label=ablation_label("prob", "random", False),
+        level=2,
+        allow_observe=False,
+        agent_kinds=("prob", "random"),
+        description="Probability-aware agent versus random with Observe disabled.",
     ),
 )
 
@@ -299,16 +354,12 @@ def condition_by_label(label: str) -> ConditionConfig:
     for condition in CONDITIONS:
         if condition.label == label:
             return condition
-    known = ", ".join(condition.label for condition in CONDITIONS)
+    known = ", ".join(c.label for c in CONDITIONS)
     raise KeyError(f"unknown condition {label!r}; known labels: {known}")
 
 
 def seed_list(base_seed: int, n: int) -> list[int]:
-    """Generate deterministic consecutive seeds without using global randomness."""
-    if not isinstance(base_seed, int) or isinstance(base_seed, bool):
-        raise ValueError("base_seed must be an integer")
-    if not isinstance(n, int) or isinstance(n, bool) or n < 0:
-        raise ValueError("n must be a non-negative integer")
+    """Generate deterministic consecutive seeds."""
     return [base_seed + offset for offset in range(n)]
 
 
@@ -319,16 +370,18 @@ def matched_seeds(n: int) -> tuple[list[int], list[int]]:
 
 
 __all__ = [
-    "CONDITIONS",
+    "ExperimentConfig",
     "MIN_GAMES_JUSTIFIED",
+    "Z_95",
     "PRIMARY_METRIC",
     "SECONDARY_METRICS",
     "STOPPING_RULE",
-    "Z_95",
     "ConditionConfig",
-    "ExperimentConfig",
+    "CONDITIONS",
     "ablation_label",
     "condition_by_label",
-    "matched_seeds",
+    "load_config",
+    "save_config",
     "seed_list",
+    "matched_seeds",
 ]

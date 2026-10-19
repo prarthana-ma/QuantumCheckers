@@ -99,12 +99,15 @@ def action_to_replay(action: Action, ply: int, player: int) -> ReplayAction:
     """Convert an engine Action to a ReplayAction."""
     piece_id = getattr(action, "piece_id", None)
     captured_id = getattr(action, "captured_id", None)
+    _target = getattr(action, "target", None)
+    if _target is None:
+        _target = getattr(action, "sites", [None])[0][0] if getattr(action, "sites", None) else None
     return ReplayAction(
         ply=ply,
         player=player,
         kind=action.kind,
         origin=_square_to_list(action.origin),
-        target=_square_to_list(action.target),
+        target=_square_to_list(_target),
         piece_id=piece_id,
         captured_id=captured_id,
     )
@@ -116,7 +119,7 @@ def event_to_replay(event: CollapseEvent, ply: int) -> ReplayEvent:
         ply=ply,
         kind="collapse",
         piece_id=event.piece_id,
-        resolved_to=_square_to_list(event.resolved_to),
+        resolved_to=_square_to_list(event.sampled),
         cause=event.cause,
     )
 

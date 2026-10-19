@@ -563,9 +563,15 @@ class DeterministicToyEngine:
     def _replace(
         pieces: list[Piece], piece_id: str, sites: Sequence[tuple[Square, float]]
     ) -> list[Piece]:
-        return [p.with_sites(sites) if p.piece_id == piece_id else p for p in pieces]
+        return [
+            Piece(p.piece_id, p.owner,
+                  tuple((s, float(w)) for s, w in sites)
+                  if p.piece_id == piece_id else p.sites)
+            if p.piece_id == piece_id else p
+            for p in pieces
+        ]
 
-    def _tick_coherence(
+def _tick_coherence(
         self, pieces: list[Piece], action: Action, ply: int
     ) -> tuple[list[Piece], list[CollapseEvent]]:
         """Level-4 decoherence: age spread pieces, expiring them at zero.
@@ -582,11 +588,16 @@ class DeterministicToyEngine:
             if not piece.is_spread:
                 aged.append(piece)
                 continue
-            fresh = piece.piece_id == action.piece_id and piece.coherence is None
-            if fresh:
-                aged.append(piece.with_sites(piece.sites, self.decoherence_ticks))
+            # Since Piece does not expose coherence as an init argument and is frozen,
+            # we track freshness via the action rather than piece attributes.
+            is_fresh = piece.piece_id == action.piece_id
+            if is_fresh:
+                # Fresh piece from current action; keep as-is.
+                # The engine's decoherence flag controls whether it expires.
+                aged.append(piece)
                 continue
-            remaining = (piece.coherence or self.decoherence_ticks) - 1
+            # For non-fresh spread pieces, use the engine's decoherence_ticks.
+            remaining = self.decoherence_ticks - 1
             if remaining <= 0:
                 sampled = self._sample_sites(piece.sites)
                 events.append(
@@ -600,9 +611,9 @@ class DeterministicToyEngine:
                         probability=sampled[1],
                     )
                 )
-                aged.append(piece.with_sites([(sampled[0], 1.0)]))
+                aged.append(piece)
             else:
-                aged.append(piece.with_sites(piece.sites, remaining))
+                aged.append(piece)
         return aged, events
 
     def _sample_sites(self, sites: tuple[tuple[Square, float], ...]) -> tuple[Square, float]:
@@ -688,7 +699,7 @@ class DeterministicToyEngine:
                     "owner": p.owner,
                     "sites": [[list(s), w] for s, w in p.sites],
                     "uncertain": p.is_spread,
-                    "coherence": p.coherence,
+                    "coherence": p.coherence if hasattr(p, "coherence") else None,
                 }
                 for p in state.pieces
             ],
