@@ -15,7 +15,6 @@ from qcheckers.engine.protocol import (
     Outcome,
     Piece,
     RejoinAction,
-    SpreadAction,
     Step,
     Transition,
     board_chances,
@@ -31,7 +30,7 @@ def test_piece_requires_a_normalized_distribution_and_distinct_squares() -> None
     with pytest.raises(ValueError, match="sum to"):
         Piece("p0", 0, (((1, 0), 0.4),))
 
-    with pytest.raises(ValueError, match="more than once"):
+    with pytest.raises(ValueError, match="twice"):
         Piece("p0", 0, (((1, 0), 0.5), ((1, 0), 0.5)))
 
 
@@ -107,19 +106,22 @@ def test_actions_serialize_to_json_friendly_values(action, expected) -> None:
     assert action.to_json() == expected
 
 
-def test_legacy_spread_fixture_and_collapse_event_fields_remain_compatible() -> None:
-    legacy_spread = SpreadAction(origin=(1, 0), target=(2, 1))
-    event = CollapseEvent(piece_id="p0", resolved_to=(2, 1))
-
-    assert legacy_spread.to_json() == {
-        "kind": "split",
-        "origin": [1, 0],
-        "target": [2, 1],
-    }
-    assert event.sampled == (2, 1)
-    assert event.to_json()["sampled"] == [2, 1]
+def test_aliases_and_collapse_event_serialization() -> None:
+    """Legacy names stay importable, and collapse events log the sampled square."""
     assert Outcome is GameOutcome
     assert Transition is Step
+
+    event = CollapseEvent(
+        ply=3,
+        piece_id="p0",
+        owner=0,
+        cause="observe",
+        chances=(((2, 1), 1.0),),
+        sampled=(2, 1),
+        probability=1.0,
+    )
+    assert event.sampled == (2, 1)
+    assert event.to_json()["sampled"] == [2, 1]
 
 
 def test_clone_engine_passes_the_requested_seed_to_an_isolated_clone() -> None:
@@ -128,5 +130,5 @@ def test_clone_engine_passes_the_requested_seed_to_an_isolated_clone() -> None:
     cloned = clone_engine(engine, seed=19)
 
     assert cloned is not engine
-    assert cloned.seed == 19
+    assert getattr(cloned, "seed") == 19
     assert cloned.level == engine.level

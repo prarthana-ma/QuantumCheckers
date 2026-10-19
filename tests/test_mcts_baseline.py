@@ -8,7 +8,7 @@ import pytest
 
 from qcheckers.agents.mcts_baseline import (
     DEFAULT_UCT_C,
-    MctsBaselineAgent,
+    MCTSBaselineAgent,
     uct_score,
 )
 from qcheckers.engine.protocol import GameState
@@ -22,8 +22,11 @@ def _make_engine(seed: int = 0, **kw) -> QuantumToyEngine:
 
 
 class TestUctScore:
-    def test_zero_visits_infinite(self):
-        assert uct_score(0.0, 0, 10, 1.0) == float("inf")
+    def test_zero_visits_rejected(self):
+        # The consolidated UCT helper validates visit counts instead of returning
+        # inf, so a tree-builder bug cannot masquerade as an exploration win.
+        with pytest.raises(ValueError, match="action_visits"):
+            uct_score(0.0, 0, 10, 1.0)
 
     def test_exploration_decreases_with_visits(self):
         s1 = uct_score(1.0, 1, 100, 1.0)
@@ -42,13 +45,13 @@ class TestUctScore:
         assert s1 > s2
 
 
-class TestMctsBaselineAgent:
+class TestMCTSBaselineAgent:
     def test_implements_agent_protocol(self):
         engine = _make_engine()
-        agent = MctsBaselineAgent(engine=engine, seed=0)
+        agent = MCTSBaselineAgent(engine=engine, seed=0)
         assert hasattr(agent, "decide")
         assert hasattr(agent, "reset")
-        assert agent.name == "mcts"
+        assert agent.name == "mcts-baseline"
 
     def test_single_action_shortcut(self):
         engine = _make_engine()
@@ -57,7 +60,7 @@ class TestMctsBaselineAgent:
         if len(legal) > 1:
             # Construct a state with only one legal action by filtering
             # (engine always returns all legal, so we test via a mock-like approach)
-            agent = MctsBaselineAgent(engine=engine, seed=0, iterations=1)
+            agent = MCTSBaselineAgent(engine=engine, seed=0, iterations=1)
             # Call with a single action
             only = legal[0]
             result = agent.decide(state, [only])
@@ -67,13 +70,13 @@ class TestMctsBaselineAgent:
         engine = _make_engine(seed=3)
         state = engine.initial_state()
         legal = list(engine.legal_actions(state))
-        agent = MctsBaselineAgent(engine=engine, seed=0, iterations=5)
+        agent = MCTSBaselineAgent(engine=engine, seed=0, iterations=5)
         action = agent.decide(state, legal)
         assert action in legal
 
     def test_empty_legal_raises(self):
         engine = _make_engine()
-        agent = MctsBaselineAgent(engine=engine, seed=0)
+        agent = MCTSBaselineAgent(engine=engine, seed=0)
         state = GameState(turn=0, ply=0, pieces=())
         with pytest.raises(ValueError, match="no legal actions"):
             agent.decide(state, [])
@@ -83,8 +86,8 @@ class TestMctsBaselineAgent:
         engine = _make_engine(seed=7)
         state = engine.initial_state()
         legal = list(engine.legal_actions(state))
-        agent1 = MctsBaselineAgent(engine=engine, seed=42, iterations=10)
-        agent2 = MctsBaselineAgent(engine=engine, seed=42, iterations=10)
+        agent1 = MCTSBaselineAgent(engine=engine, seed=42, iterations=10)
+        agent2 = MCTSBaselineAgent(engine=engine, seed=42, iterations=10)
         a1 = agent1.decide(state, legal)
         a2 = agent2.decide(state, legal)
         assert a1 == a2
@@ -93,7 +96,7 @@ class TestMctsBaselineAgent:
         engine = _make_engine(seed=1)
         state = engine.initial_state()
         legal = list(engine.legal_actions(state))
-        agent = MctsBaselineAgent(engine=engine, seed=0, iterations=8)
+        agent = MCTSBaselineAgent(engine=engine, seed=0, iterations=8)
         agent.decide(state, legal)
         diag = agent.last_diagnostics
         assert diag["simulations"] == 8
@@ -105,18 +108,18 @@ class TestMctsBaselineAgent:
     def test_invalid_exploration_raises(self):
         engine = _make_engine()
         with pytest.raises(ValueError, match="exploration"):
-            MctsBaselineAgent(engine=engine, exploration=-1.0)
+            MCTSBaselineAgent(engine=engine, exploration=-1.0)
 
     def test_invalid_iterations_raises(self):
         engine = _make_engine()
         with pytest.raises(ValueError, match="iterations"):
-            MctsBaselineAgent(engine=engine, iterations=0)
+            MCTSBaselineAgent(engine=engine, iterations=0)
 
     def test_reset_reseeds(self):
         engine = _make_engine()
         state = engine.initial_state()
         legal = list(engine.legal_actions(state))
-        agent = MctsBaselineAgent(engine=engine, seed=5, iterations=10)
+        agent = MCTSBaselineAgent(engine=engine, seed=5, iterations=10)
         a1 = agent.decide(state, legal)
         agent.reset(seed=5)
         a2 = agent.decide(state, legal)
@@ -130,7 +133,7 @@ class TestMctsBaselineAgent:
         if legal:
             state = engine.apply(state, legal[0]).state
         # Now terminal; legal_actions returns []
-        agent = MctsBaselineAgent(engine=engine, seed=0)
+        agent = MCTSBaselineAgent(engine=engine, seed=0)
         with pytest.raises(ValueError):
             agent.decide(state, engine.legal_actions(state))
 
@@ -139,7 +142,7 @@ class TestMctsBaselineAgent:
         from qcheckers.engine.protocol import clone_engine
 
         engine = _make_engine()
-        agent = MctsBaselineAgent(engine=engine, seed=0)
+        agent = MCTSBaselineAgent(engine=engine, seed=0)
         # Our toy engine supports clone, so this should work
         cloned = clone_engine(engine, 42)
         assert cloned is not None
@@ -150,6 +153,6 @@ class TestMctsBaselineAgent:
 
     def test_repr(self):
         engine = _make_engine()
-        agent = MctsBaselineAgent(engine=engine, seed=3, iterations=10)
+        agent = MCTSBaselineAgent(engine=engine, seed=3, iterations=10)
         r = repr(agent)
-        assert "MctsBaselineAgent" in r
+        assert "MCTSBaselineAgent" in r

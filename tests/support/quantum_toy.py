@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from typing import Sequence
 
 from qcheckers.engine.protocol import (
+    Action,
     CaptureAction,
     CollapseEvent,
     GameEngine,
@@ -31,6 +32,7 @@ from qcheckers.engine.protocol import (
     Piece,
     RejoinAction,
     SpreadAction,
+    Square,
     Transition,
 )
 
@@ -96,7 +98,7 @@ def _rejoin_action(origin, target):
 
 
 def _merge_action(origin, target, absorbed_id):
-    return MergeAction(piece_id="", origin=origin, target=target)
+    return MergeAction(piece_id="", origin=origin, other_piece_id=absorbed_id)
 
 
 class QuantumToyEngine(GameEngine):
@@ -344,7 +346,6 @@ class QuantumToyEngine(GameEngine):
             ply=state.ply + 1,
             pieces=tuple(pieces),
             captured=tuple(captured),
-            info=dict(state.info),
         )
         return Transition(state=new_state, events=tuple(events))
 
@@ -353,16 +354,16 @@ class QuantumToyEngine(GameEngine):
 
     def outcome(self, state: GameState) -> Outcome | None:
         if state.ply >= self.max_plies:
-            return Outcome(winner=None, reason="ply_cap")
+            return Outcome(winner=None, reason="ply_limit")
         p0_pieces = state.pieces_of(0)
         p1_pieces = state.pieces_of(1)
         if not p1_pieces:
-            return Outcome(winner=0, reason="all_captured")
+            return Outcome(winner=0, reason="no_pieces")
         if not p0_pieces:
-            return Outcome(winner=1, reason="all_captured")
+            return Outcome(winner=1, reason="no_pieces")
         # Check if current player has any legal actions
         if not self._generate_actions(state):
-            return Outcome(winner=1 - state.turn, reason="no_legal_actions")
+            return Outcome(winner=1 - state.turn, reason="no_legal_moves")
         return None
 
     # -- helpers ---------------------------------------------------------
