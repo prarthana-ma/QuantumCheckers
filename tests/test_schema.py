@@ -1,11 +1,11 @@
 """Record schema, JSON round-trip and replay payload -- Persons B and E.
 
-Owner: **Person B** for the JSONL record format; **P4** for the replay payload.
+Owner: **Person B** for the JSONL record format; **Person E** for the replay payload.
 
 The JSONL format is a contract between three people: Person B writes it, Person D's
-statistics read it, and P4's viewer renders it. These tests are the contract's
+statistics read it, and Person E's viewer renders it. These tests are the contract's
 executable definition -- if a field changes shape without the log still round-tripping,
-Person D's rates and P4's board break in ways that only show up in a plot.
+Person D's rates and Person E's board break in ways that only show up in a plot.
 
 The rules that matter:
 
@@ -326,7 +326,7 @@ def test_stats_rejects_an_unreadable_record() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Replay payload (P4)
+# Replay payload (Person E)
 # ---------------------------------------------------------------------------
 
 
