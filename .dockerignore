@@ -1,0 +1,9 @@
+**
+!Dockerfile
+!requirements-server.txt
+!qcheckers/
+!qcheckers/**
+!server/
+!server/**
+**/__pycache__/
+**/*.pyc

@@ -1,28 +1,38 @@
-# Python
-__pycache__/
-*.py[cod]
+# Virtual environments and build artefacts
 .venv/
 venv/
-.pytest_cache/
-.ruff_cache/
-*.egg-info/
+env/
 build/
 dist/
+*.egg-info/
 
-# Node
-node_modules/
-.next/
-out/
+# Byte-compiled and cached files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Environment and logs
+# Jupyter / Colab
+.ipynb_checkpoints/
+
+# Generated experiment output: JSONL logs, replay payloads, PNGs.
+# Keep the directory itself, drop the contents.
+results/*
+!results/.gitkeep
+
+# Local scratch data (raw upstream clones, captured API payloads)
+data/logs/
+
+# Any JSONL anywhere, so a stray log is never committed by accident
+*.jsonl
+
+# Editor and OS noise
 .env
 .env.*
 !.env.example
-*.log
-
-# Experiment results (generated outputs)
-results/
-
-# OS
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
