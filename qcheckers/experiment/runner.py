@@ -15,6 +15,28 @@ Design:
 - Failures are captured as distinct outcomes (error/timeout/invalid_action), never
   silently fabricated as valid results.
 - Resources are cleaned up after each game regardless of outcome.
+"""Seeded game runner.
+
+Owner: **Person B -- baseline agents and harness**. This is the headless harness that
+brief section 16 Gate 3 requires, and the JSONL writer whose format Person D and
+P4 depend on.
+
+Determinism contract
+--------------------
+``play(engine, agents, seed)`` is a pure function of its three arguments. The same
+``(engine config, agent config, seed)`` produces a :class:`GameRecord` whose
+``to_line()`` is byte-identical across runs and across processes. That is asserted in
+``tests/test_runner.py`` and is what makes "logs regenerable from seeds" (brief
+section 12) true rather than aspirational.
+
+Every random stream is explicit:
+
+* the engine owns its own ``random.Random(seed)`` for collapse sampling;
+* each agent owns a ``random.Random``, constructed from the same seed by
+  :func:`make_agent`, so agents are reproducible too;
+* the runner itself never touches ``random``.
+
+Nothing here imports numpy or matplotlib.
 """
 
 from __future__ import annotations

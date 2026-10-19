@@ -195,32 +195,57 @@ def _record_mapping(record: Any) -> Mapping[str, Any]:
     return {}
 
 
-def _field(record: Any, name: str) -> Any:
+def _field(record: Any, *names: str) -> Any:
     data = _record_mapping(record)
-    if name in data:
-        return data[name]
-    if hasattr(record, name):
-        return getattr(record, name)
-    raise ValueError(f"game record is missing required field {name!r}")
+    for name in names:
+        if name in data:
+            return data[name]
+        if hasattr(record, name):
+            return getattr(record, name)
+    raise ValueError(f"game record is missing required field {names[0]!r}")
 
 
-def _count_field(record: Any, name: str) -> int:
-    value = _field(record, name)
+def _count_field(record: Any, name: str, *aliases: str) -> int:
+    value = _field(record, name, *aliases)
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise ValueError(f"game record field {name!r} must be a non-negative integer")
     return value
 
 
+def _seed(record: Any) -> Any:
+    return _field(record, "seed")
+
+
+def _winner(record: Any) -> Any:
+    return _field(record, "winner")
+
+
+def _plies(record: Any) -> int:
+    return _count_field(record, "length", "plies")
+
+
+def _collapses(record: Any) -> int:
+    return _count_field(record, "collapses")
+
+
+def _observe_moves(record: Any) -> int:
+    return _count_field(record, "observe_moves")
+
+
+def _spread_moves(record: Any) -> int:
+    return _count_field(record, "spread_moves")
+
+
 def _binary_outcome(record: Any, metric_index: int) -> int:
     if metric_index in (0, 1):
-        winner = _field(record, "winner")
+        winner = _winner(record)
         if winner is not None and winner not in (0, 1):
             raise ValueError(f"winner must be 0, 1, or None; got {winner!r}")
         return int(winner == metric_index)
     if metric_index == 2:
-        return int(_field(record, "winner") is None)
-    field_by_metric = ("collapses", "observe_moves", "spread_moves")
-    return int(_count_field(record, field_by_metric[metric_index - 3]) > 0)
+        return int(_winner(record) is None)
+    count_by_metric = (_collapses, _observe_moves, _spread_moves)
+    return int(count_by_metric[metric_index - 3](record) > 0)
 
 
 def paired_outcomes(
@@ -239,7 +264,7 @@ def paired_outcomes(
     def index_records(records: Sequence[GameLike], arm: str) -> dict[Any, GameLike]:
         indexed: dict[Any, GameLike] = {}
         for record in records:
-            seed = _field(record, "seed")
+            seed = _seed(record)
             if seed is None:
                 raise ValueError(f"{arm} record is missing a usable seed")
             try:
@@ -288,15 +313,15 @@ def summarize(
     spread_counts: list[int] = []
 
     for record in games:
-        winner = _field(record, "winner")
+        winner = _winner(record)
         if winner is not None and winner not in (0, 1):
             raise ValueError(f"winner must be 0, 1, or None; got {winner!r}")
         for metric_index in range(6):
             counts[metric_index] += _binary_outcome(record, metric_index)
-        lengths.append(_count_field(record, "plies"))
-        collapse_counts.append(_count_field(record, "collapses"))
-        observe_counts.append(_count_field(record, "observe_moves"))
-        spread_counts.append(_count_field(record, "spread_moves"))
+        lengths.append(_plies(record))
+        collapse_counts.append(_collapses(record))
+        observe_counts.append(_observe_moves(record))
+        spread_counts.append(_spread_moves(record))
 
     metric_results = {
         METRICS[index]: rate(counts[index], n, z) for index in range(6)
@@ -332,7 +357,7 @@ def compare_conditions(
         seeds: set[Any] = set()
         for record in records:
             try:
-                seed = _field(record, "seed")
+                seed = _seed(record)
                 if seed is None or seed in seeds:
                     return False
                 seeds.add(seed)
@@ -343,8 +368,8 @@ def compare_conditions(
     paired = (
         has_unique_seeds(a_records)
         and has_unique_seeds(b_records)
-        and {_field(record, "seed") for record in a_records}
-        == {_field(record, "seed") for record in b_records}
+        and {_seed(record) for record in a_records}
+        == {_seed(record) for record in b_records}
     )
     comparisons: dict[str, Any] = {}
     for metric in metrics:
