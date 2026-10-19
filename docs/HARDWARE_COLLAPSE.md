@@ -15,7 +15,8 @@ These are different claims and are kept apart on purpose:
 **Goal (bounded slice):** when live gameplay actually collapses a spread piece
 (capture measurement, Level-4 Observe, or Level-4 decoherence expiry), the square written into game state must come
 from one measurement shot submitted to IBM Quantum hardware, *when IBM credentials are
-configured*. No Aer/toy fallback on the live path. Research/offline use is unchanged.
+configured*. There is no simulator or RNG substitution on the live path: an unusable
+bitstring or an unavailable service refuses the move. Research/offline use is unchanged.
 
 ## Ground rules honoured
 - Existing uncommitted user changes are preserved (no reset/clean/overwrite).
@@ -31,26 +32,29 @@ configured*. No Aer/toy fallback on the live path. Research/offline use is uncha
    hardware circuit samples a selected piece's measurement distribution only.
 2. **Circuit encoding.** `qcheckers/quantum/game_measure.py` builds a measurement
    circuit from a piece's `(square, chance)` sites: one qubit per bit needed for the
-   candidate count, amplitude `sqrt(chance)` per basis state, measured. Mapping
-   basis-state index -> square matches the existing `circuits.py` convention
-   (`|00>`=site0, `|01>`=site1, `|10>`=site2). Supports variable candidate counts.
-   Live collapses enforce exactly one shot and a positive finite timeout. Invalid
-   hardware configuration returns a clear HTTP 503 when a room is created, with no
-   partial room stored; provider failures during play preserve the existing board.
-3. **Invalid/noisy outcome policy (deterministic).** If the measured bitstring maps to
-   no candidate (e.g. the unused `|11>` basis, or hardware noise), fall back to the
-   highest-weight site, ties broken by the piece's own site order. This is recorded in
-   provenance as `used="invalid_fallback"` — it never silently invokes Aer or the RNG.
-4. **Provenance.** The room records the backend name + job id + raw bitstring for the
-   last hardware collapse and exposes it on the state view (`quantum` field) and on the
-   collapse event as the browser sees it. No credential ever enters a payload or a log.
+   candidate count, amplitude `sqrt(chance)` per basis state, measured. The
+   basis-state index -> square mapping uses `|00>`=site0, `|01>`=site1, `|10>`=site2.
+   Supports variable candidate counts. Live collapses enforce exactly one shot and a
+   positive finite timeout. Invalid hardware configuration returns a clear HTTP 503
+   when a room is created, with no partial room stored; provider failures during play
+   preserve the existing board.
+3. **Invalid/noisy outcome policy (refusal, no substitution).** One shot on real
+   hardware can return a basis state that maps to no candidate square (for example the
+   unused `|11>` state, or a noisy outcome). The move is then refused with error code
+   `quantum_invalid_outcome`; the game state is unchanged. Nothing is substituted --
+   no highest-weight choice, no simulator, no RNG.
+4. **Provenance.** The room records the backend name, job id, raw bitstring, sampled
+   square, probability and candidate sites for the last hardware collapse and exposes
+   them on the state view (`quantum` field) and on the collapse event as the browser
+   sees it. No credential ever enters a payload or a log.
 5. **Liveness.** The blocking IBM wait runs in a worker thread (`asyncio.to_thread`)
    under a per-room `asyncio.Lock`, so the FastAPI loop stays free and two players can
    never apply concurrent moves to the same room. A `quantum_pending` flag in the view
    drives the client's pending indicator.
 6. **Failure.** A missing key/instance/backend or a failed/timed-out job raises
-   `QuantumMeasurementError`; the engine raises before any state is constructed, so the
-   room is untouched and the socket gets a clear `Error` frame.
+   `QuantumMeasurementError` (error code `quantum_unavailable`); an unusable bitstring
+   is refused with `quantum_invalid_outcome`. The engine raises before any state is
+   constructed, so the room is untouched and the socket gets a clear `Error` frame.
 
 ## Initial integration file list (historical)
 - NEW `qcheckers/quantum/game_measure.py` — circuit from sites, bitstring policy.
@@ -87,7 +91,7 @@ configured*. No Aer/toy fallback on the live path. Research/offline use is uncha
 - `python -m pytest` -> **270 passed**, exit 0 (was 268; this pass adds the two
   serialization regression tests).
 - `npm run typecheck` (client) -> clean; `npm test` -> 6/6; `npm run build` -> compiled.
-- `python -c` bit-check on Aer: 3-site circuit reproduces 0.50/0.25/0.25 and 2-site
+- `python -c` bit-check on Aer (test dependency): 3-site circuit reproduces 0.50/0.25/0.25 and 2-site
   0.50/0.50, confirming the `|00>`/`|01>`/`|10>` -> square mapping.
 - WebSocket integration tests exercise the real interface: observe applies the hardware
   square with provenance; a failing IBM boundary returns an Error and leaves the board
@@ -99,7 +103,7 @@ configured*. No Aer/toy fallback on the live path. Research/offline use is uncha
 ## Verification (all green)
 - `python -m pytest` -> 268 passed, exit 0 (old HANDOFF.md records 249 before this
   feature; the new `tests/test_hardware_collapse.py` adds 19).
-- `python -c` bit-check on Aer: 3-site circuit reproduces 0.50/0.25/0.25 and 2-site
+- `python -c` bit-check on Aer (test dependency): 3-site circuit reproduces 0.50/0.25/0.25 and 2-site
   0.50/0.50, confirming the `|00>`/`|01>`/`|10>` -> square mapping.
 - `npm run typecheck` (client) -> clean.
 - `npm run build` (client) -> compiled successfully.
@@ -110,7 +114,7 @@ configured*. No Aer/toy fallback on the live path. Research/offline use is uncha
 ## Deferred / known limitations
 - **No real QPU job has been run.** `tests/test_hardware_collapse.py` mocks the IBM
   boundary (`server.quantum_measure._run_ibm_measurement`). Running a real hardware job
-  still requires a valid `IBM_CLOUD_API_KEY`; no Aer output is labelled hardware output.
+  still requires a valid `QISKIT_IBM_TOKEN`; no simulated output is labelled hardware output.
 - No full-board quantum state; no entanglement or phase gameplay. Each collapse
   re-prepares a fresh circuit from the stored distribution; no qubit is "loaded"
   between turns.

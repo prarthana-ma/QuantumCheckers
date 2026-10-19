@@ -410,7 +410,6 @@ function QuantumStrip({ state }: { state: GameState }) {
             </span>
             <span className="tnum text-[10px] text-ink-faint">
                 bitstring {last.bitstring}
-                {last.used === "invalid_fallback" ? " (unused basis; deterministic fallback)" : ""}
             </span>
             <span className="ml-auto text-[10px] text-ink-faint">
                 one shot per collapse · circuit re-prepared each time

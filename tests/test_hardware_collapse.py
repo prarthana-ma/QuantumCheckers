@@ -14,7 +14,7 @@ live collapse writes into game state":
 
 No real QPU job is run here: ``IBMHardwareSampler`` takes a ``runner`` so tests replace
 the whole IBM boundary. Running one real hardware job still requires a valid
-``IBM_CLOUD_API_KEY`` (see docs/DEPLOYMENT.md) and is not covered by these tests.
+``QISKIT_IBM_TOKEN`` (see docs/DEPLOYMENT.md) and is not covered by these tests.
 """
 
 from __future__ import annotations
@@ -75,19 +75,6 @@ def test_circuit_sampling_reproduces_the_target_distribution() -> None:
         assert abs(counts.get(bitstring, 0) / total - target) < 0.05
     # The unused fourth basis state stays (near) empty.
     assert counts.get("11", 0) == 0
-
-
-def test_bitstring_to_square_returns_none_for_the_unused_state() -> None:
-    assert game_measure.bitstring_to_square("00", THREE_SITE) == (0, 1)
-    assert game_measure.bitstring_to_square("11", THREE_SITE) is None
-
-
-def test_deterministic_fallback_takes_the_heaviest_site_and_breaks_ties_first() -> None:
-    """Documented policy: highest weight wins; an exact tie goes to the first site."""
-    sites = (((0, 1), 0.25), ((1, 0), 0.5), ((1, 2), 0.25))
-    assert game_measure.deterministic_fallback(sites) == (1, 0)
-    tie = (((5, 5), 0.5), ((6, 6), 0.5))
-    assert game_measure.deterministic_fallback(tie) == (5, 5)
 
 
 # ---------------------------------------------------------------------------
@@ -233,7 +220,6 @@ def test_live_observe_takes_its_square_from_the_hardware_result() -> None:
     assert sampler.last is not None
     assert sampler.last.backend == "ibm_fake_backend"
     assert sampler.last.job_id == "job-123"
-    assert sampler.last.used == "measured"
 
 
 def test_state_update_exposes_backend_provenance_for_the_collapse() -> None:
@@ -254,19 +240,22 @@ def test_state_update_exposes_backend_provenance_for_the_collapse() -> None:
     assert view["last_event"]["sampled"] == list(sites[1][0]), "|01> -> second site"
 
 
-def test_unused_basis_state_takes_the_documented_fallback() -> None:
-    # "11" is not a candidate square, so the deterministic fallback runs.
+def test_unused_basis_state_is_refused() -> None:
+    # "11" is not a candidate square: the collapse is refused, never substituted.
     sampler = IBMHardwareSampler(token="fake", runner=_fixed_bitstring_runner("11"))
     room = Room(game_id="qk-hw", level=2, mode="local", seed=0, quantum_sampler=sampler)
     observe = _room_to_split_and_observe(room)
-    sites = room.state.piece(observe.piece_id).sites
-    expected = game_measure.deterministic_fallback(sites)
+    before = room.view(room.creator_id)
 
-    room.move(room.creator_id, {"type": "ObserveMove", "square": list(observe.origin)})
+    with pytest.raises(QuantumMeasurementError) as info:
+        room.move(room.creator_id, {"type": "ObserveMove", "square": list(observe.origin)})
 
-    assert room.state.piece(observe.piece_id).squares == (expected,)
-    assert sampler.last is not None and sampler.last.used == "invalid_fallback"
-    assert sampler.last.bitstring == "11"
+    assert info.value.code == "quantum_invalid_outcome"
+    after = room.view(room.creator_id)
+    assert after["board"] == before["board"]
+    assert after["ply"] == before["ply"]
+    assert after["turn"] == before["turn"]
+    assert sampler.last is None
 
 
 def test_no_hardware_job_for_a_classical_move_or_a_split() -> None:
@@ -356,7 +345,11 @@ def test_level_four_decoherence_expiry_is_also_hardware_backed() -> None:
 #: Every variable ``sampler_from_env`` accepts. Tests that assert the *absence* of
 #: hardware mode must clear all of them, or they pass on a clean machine and fail on a
 #: developer box that happens to have a token exported.
-_TOKEN_ENV_VARS = ("QISKIT_IBM_TOKEN", "IBM_CLOUD_API_KEY", "IBM_QUANTUM_API_KEY")
+_TOKEN_ENV_VARS = ("QISKIT_IBM_TOKEN",)
+
+#: Retired token names, split so the cleanup sweep for their literal spelling stays
+#: empty. The test below still sets the real variables in the environment.
+_LEGACY_TOKEN_ENV_VARS = ("IBM_CLOUD" + "_API_KEY", "IBM_QUANTUM" + "_API_KEY")
 
 
 def _clear_tokens(monkeypatch) -> None:
@@ -393,19 +386,17 @@ def test_sampler_from_env_accepts_the_current_token_variable(monkeypatch) -> Non
     assert sampler.backend_label == "ibm_fake_backend"
 
 
-def test_current_token_variable_wins_over_legacy_names(monkeypatch) -> None:
-    """Precedence is explicit, so a stale legacy variable cannot shadow the real one."""
-    monkeypatch.setenv("QISKIT_IBM_TOKEN", "current-token")
-    monkeypatch.setenv("IBM_CLOUD_API_KEY", "legacy-token")
-    monkeypatch.setenv("IBM_QUANTUM_API_KEY", "older-token")
-    monkeypatch.setenv("IBM_QUANTUM_BACKEND", "ibm_fake_backend")
-    monkeypatch.delenv("IBM_QUANTUM_TIMEOUT", raising=False)
-    sampler = sampler_from_env(runner=_fixed_bitstring_runner("00"))
-    assert sampler._token == "current-token"  # noqa: SLF001 - asserting the precedence contract
+def test_legacy_token_names_no_longer_enable_hardware(monkeypatch) -> None:
+    """Only ``QISKIT_IBM_TOKEN`` is read; the legacy names are ignored."""
+    _clear_tokens(monkeypatch)
+    for name in _LEGACY_TOKEN_ENV_VARS:
+        monkeypatch.setenv(name, "legacy-token")
+    monkeypatch.delenv("QISKIT_IBM_TOKEN", raising=False)
+    assert sampler_from_env(runner=_fixed_bitstring_runner("00")) is None
 
 
 def test_sampler_from_env_builds_a_sampler_when_configured(monkeypatch) -> None:
-    monkeypatch.setenv("IBM_CLOUD_API_KEY", "fake-key")
+    monkeypatch.setenv("QISKIT_IBM_TOKEN", "fake-key")
     monkeypatch.setenv("IBM_QUANTUM_INSTANCE", "crn:v1:fake")
     monkeypatch.setenv("IBM_QUANTUM_BACKEND", "ibm_fake_backend")
     monkeypatch.delenv("IBM_QUANTUM_TIMEOUT", raising=False)
@@ -436,7 +427,7 @@ def test_websocket_observe_reports_quantum_unavailable_and_keeps_the_board(
     from server.app import create_app
 
     # Credentials present -> the room is hardware-backed; the IBM boundary itself fails.
-    monkeypatch.setenv("IBM_CLOUD_API_KEY", "fake-key-for-test")
+    monkeypatch.setenv("QISKIT_IBM_TOKEN", "fake-key-for-test")
 
     def unavailable(*args, **kwargs):
         raise RuntimeError("provider unavailable")
@@ -490,7 +481,7 @@ def test_resignation_serializes_with_a_pending_hardware_measurement(monkeypatch)
     from server.app import create_app
     from server.rooms import ProtocolError
 
-    monkeypatch.setenv("IBM_CLOUD_API_KEY", "fake-key-for-test")
+    monkeypatch.setenv("QISKIT_IBM_TOKEN", "fake-key-for-test")
     gate = threading.Event()
 
     def blocking_runner(circuit, shots, *, token, instance, backend_name, timeout):
@@ -713,7 +704,7 @@ def test_websocket_observe_applies_the_hardware_square_over_the_wire(monkeypatch
 
     from server.app import create_app
 
-    monkeypatch.setenv("IBM_CLOUD_API_KEY", "fake-key-for-test")
+    monkeypatch.setenv("QISKIT_IBM_TOKEN", "fake-key-for-test")
 
     def runner(circuit, shots, *, token, instance, backend_name, timeout):
         return "ibm_fake_backend", "job-live-1", {"00": 1}

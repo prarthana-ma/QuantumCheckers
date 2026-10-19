@@ -85,7 +85,7 @@ Preprint: [arXiv:2506.05962](https://arxiv.org/abs/2506.05962). Upstream code:
 
 ## Setup
 
-Python 3.10 or newer. Install the full Python environment, including the local quantum-circuit simulator:
+Python 3.10 or newer. Install the full Python environment:
 
 ```powershell
 python -m venv .venv
@@ -106,7 +106,8 @@ python -m pytest
 
 Python tests cover both engines, archived experiment replay, paper-level transitions,
 agent legality and determinism, branch-cap behavior, the server protocol, and the
-separate Qiskit circuits. See [`docs/HANDOFF.md`](docs/HANDOFF.md) for the latest recorded
+hardware-collapse circuit builder against a mocked IBM boundary. See
+[`docs/HANDOFF.md`](docs/HANDOFF.md) for the latest recorded
 verification count. Passing tests establish implementation behavior, not paper-wide
 conformance or a winning strategy.
 
@@ -235,13 +236,15 @@ The frozen wire contract is in [`docs/PROTOCOL.md`](docs/PROTOCOL.md); the serve
 resolves every message against the selected engine's `legal_actions`, so there is one
 authoritative rules implementation per room.
 
-The separate circuit demo uses Qiskit and local Aer simulation; these circuits demonstrate
-superposition, measurement and phase dependence but are not integrated into the game engine.
-Run `python -m qcheckers.quantum` for the demo. With no IBM key it uses local Aer;
-with `QISKIT_IBM_TOKEN` configured and `requirements-ibm.txt` installed it attempts
-IBM Quantum, falling back to Aer if unavailable. The CLI labels the backend used. This
-standalone circuit demonstration is separate from the CPU-held game state and from the
-optional live collapse sampler.
+When `QISKIT_IBM_TOKEN` is set (and `requirements-ibm.txt` installed), the live server
+resolves every collapse — an `Observe`, or a Level-4 decoherence expiry — with **one
+measurement shot** of a real circuit built by `qcheckers/quantum/game_measure.py` on IBM
+Quantum, and maps the measured bitstring to a candidate square. A bitstring that maps to
+no candidate square (an unused basis state, or hardware noise) is refused with error code
+`quantum_invalid_outcome`; a missing key, instance or backend, or a failed or timed-out
+job, is refused with `quantum_unavailable`. In both cases the game state is left
+unchanged and nothing is substituted. With no token the ordinary offline game runs: no
+simulator and no circuits. Aer is only a test dependency.
 
 The game's Music toggle controls a CC0 ambient loop independently of sound effects;
 see [`docs/ATTRIBUTION.md`](docs/ATTRIBUTION.md) for the source and license.
@@ -285,7 +288,7 @@ qcheckers/
     live_mcts.py      UCT state tree for the local paper-based game
     observe_agent.py  Frozen toy-research Observe agent
     prob_aware.py     Frozen toy-research probability-aware search
-  quantum/        Qiskit/Aer circuit demonstration, separate from game rules
+  quantum/        one-shot IBM measurement circuit (game_measure.py)
   experiment/     Logging, statistics, configuration
     schema.py         Person B -- GameRecord/TurnRecord, JSONL contract
     runner.py         Person B -- seeded play(), JSONL write/read
@@ -319,9 +322,10 @@ results/           Generated logs and plots (git-ignored except .gitkeep)
 ```
 
 The toy engine, agents, runner and statistics use only the Python standard library. The
-full environment also installs `numpy` and `matplotlib` for analysis, `qiskit` and
-`qiskit-aer` for the separate circuit demonstration, and FastAPI/Uvicorn for the game
-server. The Next.js client has its own locked npm dependencies in `client/package-lock.json`.
+full environment also installs `numpy` and `matplotlib` for analysis and FastAPI/Uvicorn
+for the game server. The optional hardware path installs the IBM SDK from
+`requirements-ibm.txt`; Qiskit Aer is a test-only dependency for the circuit builder. The
+Next.js client has its own locked npm dependencies in `client/package-lock.json`.
 
 ## Engine levels
 

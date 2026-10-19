@@ -53,10 +53,11 @@ listed as UNVERIFIED in the brief; it is now a quote with a section number.
 | primary client | Next.js 16.4.0, Node.js 22.16.0, npm 11.6.0 (`client/package-lock.json`) |
 
 The engine, agents, runner and statistics layer deliberately import nothing outside the
-standard library, so a bare interpreter can run a batch. Qiskit and Aer are used by the
-separate circuit demonstration and its tests, and by the opt-in live hardware path on the
-game server; not by the engine's default sampling or the experiment path. The live path
-is exercised only against a mocked IBM boundary; no real hardware job has been recorded.
+standard library, so a bare interpreter can run a batch. Qiskit is used by the opt-in
+live hardware path on the game server; Qiskit Aer is a test-only dependency used by the
+hardware-circuit tests. Neither is used by the engine's default sampling or the
+experiment path. The live path is exercised only against a mocked IBM boundary; no real
+hardware job has been recorded.
 The root `requirements.txt` describes supported version ranges; this table records the
 versions in the review environment rather than exact pins.
 
@@ -275,7 +276,6 @@ python scripts/make_plots.py                          # 5 figures, each stating 
 python scripts/make_demo_seeds.py                     # 3 replay payloads for the demo
 python scripts/verify_results.py --json results/verification.json
 python scripts/browser_check.py                       # historical static-client flow
-python -m qcheckers.quantum                          # offline Qiskit/Aer circuit demo
 ```
 
 `results/*.jsonl`, `results/plots/*.png` and `results/verification.json` are generated

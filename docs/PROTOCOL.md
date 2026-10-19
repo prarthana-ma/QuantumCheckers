@@ -290,7 +290,7 @@ Notes that keep the wire format honest about the engine:
 | --- | --- |
 | `StateUpdate` | `board`, `occupancy`, `coherence`, `turn`, `phase`, `last_event`, `last_action`, `legal`, `you`, `ply`, `status`, `quantum`, `quantum_pending` |
 | `GameOver` | `result` (`0` \| `1` \| `null`), `reason` (`no_pieces` \| `no_legal_moves` \| `ply_limit` \| `forty_move_draw` \| `resign`), `moves`, `seed`, `game_id`, `level`, `mode` |
-| `Error` | `message`, `code` |
+| `Error` | `message`, `code` (e.g. `not_seated`, `game_over`, `quantum_unavailable`, `quantum_invalid_outcome`) |
 | `Tick` | `t` (seconds since the room opened, integer) |
 | `QuantumPending` | `pending` (`true`), `game_id`, `backend` (`null` when the room is not QPU-backed) |
 
@@ -323,18 +323,20 @@ Notes that keep the wire format honest about the engine:
   `{"enabled": <bool>, "pending": <bool>, "backend": <string|null>,
   "last": <provenance|null>}`.
   * `enabled` — `true` when this room resolves collapses on IBM Quantum hardware
-    (`IBM_CLOUD_API_KEY` was set when the room was created). `false` is the ordinary
+    (`QISKIT_IBM_TOKEN` was set when the room was created). `false` is the ordinary
     offline game, and every other field here is then inert.
   * `backend` — the device name. Before the first job it is the configured
     `IBM_QUANTUM_BACKEND` or `"IBM Quantum (unresolved)"`; after a job it is the device
     that actually ran it.
   * `last` — provenance of the most recent hardware collapse, or `null`:
-    `backend`, `job_id`, `bitstring` (the raw measured key, e.g. `"01"`), `used`
-    (`"measured"` when the bitstring mapped to a candidate square, `"invalid_fallback"`
-    when it did not and the deterministic fallback chose), `sampled` (`[row,col]`),
-    `probability`, `sites`. The same object is attached to `last_event.quantum` so the
-    reveal animation can name the backend that resolved the piece.
+    `backend`, `job_id`, `bitstring` (the raw measured key, e.g. `"01"`), `sampled`
+    (`[row,col]`), `probability`, `sites`. The same object is attached to
+    `last_event.quantum` so the reveal animation can name the backend that resolved the
+    piece.
   * No credential ever appears in this block, in `Error.message`, or in a log.
+  * Hardware error codes: `quantum_unavailable` (missing key, instance or backend, or a
+    failed/timed-out job) and `quantum_invalid_outcome` (the measured bitstring maps to
+    no candidate square). Both refuse the move and leave the game state unchanged.
 * `quantum_pending` — `true` only while a measurement is in flight; the authoritative
   `StateUpdate` that follows the job carries the result and resets it to `false`.
 * `QuantumPending` frame — sent **before** a hardware measurement starts, to every socket
@@ -450,3 +452,7 @@ does not replay the move history. Concretely:
   action profile, including its engine-specific fields, two-target split and merge
   source forms, plus `RetryAI`. The earlier toy-engine sample remains as a labeled
   archival example; its fields and meanings did not change.
+* 2026-10-19 — hardware-collapse refusal semantics: added `quantum_invalid_outcome`
+  for an unusable measured bitstring; the move is refused and the state is unchanged.
+  Provenance no longer carries a `used` field. No other field or message changed
+  meaning.

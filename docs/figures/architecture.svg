@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="620" viewBox="0 0 1200 620" role="img" aria-labelledby="title desc">
   <title id="title">QCheckers project architecture</title>
-  <desc id="desc">The shared toy game engine supports the experiment runner and FastAPI game server. The server exchanges state with the Next.js browser client. A separate Qiskit and Aer path demonstrates quantum circuits. As an opt-in exception, the game server may resolve one live collapse with a single measurement on IBM Quantum hardware when credentials are configured.</desc>
+  <desc id="desc">The shared toy game engine supports the experiment runner and FastAPI game server. The server exchanges state with the Next.js browser client. As an opt-in exception, the game server may resolve one live collapse with a single measurement on IBM Quantum hardware when credentials are configured.</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 10 5 0 10z" fill="#a78bfa"/></marker>
     <style>
@@ -34,8 +34,8 @@
   <path class="line" d="M750 432 H840" marker-start="url(#arrow)"/>
   <text x="770" y="555" class="body">WebSocket carries actions and state updates</text>
   <rect class="sep" x="55" y="370" width="310" height="155"/>
-  <text x="82" y="410" class="tag">SEPARATE QUANTUM DEMO</text>
-  <text x="82" y="448" class="title">Qiskit + local Aer</text>
-  <text x="82" y="482" class="body">Split · measurement · interference</text>
-  <text x="82" y="510" class="body">Not connected to game rules</text>
+  <text x="82" y="410" class="tag">IBM QUANTUM · OPT-IN LIVE PATH</text>
+  <text x="82" y="448" class="title">One-shot collapse circuit</text>
+  <text x="82" y="482" class="body">game_measure.py · one measurement shot</text>
+  <text x="82" y="510" class="body">No simulator or RNG substitution</text>
 </svg>

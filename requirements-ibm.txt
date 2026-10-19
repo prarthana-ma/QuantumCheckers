@@ -1,5 +1,4 @@
-# Optional IBM Quantum execution for python -m qcheckers.quantum and for the
-# live hardware-collapse path in server/quantum_measure.py.
+# IBM Quantum SDK for the live hardware-collapse path (`server/quantum_measure.py`).
 -r requirements.txt
 
 # Upper bound is deliberate and load-bearing.

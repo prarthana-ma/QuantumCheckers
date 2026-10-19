@@ -1,14 +1,12 @@
 """IBM Quantum hardware sampler for *live* game collapses.
 
-This is the one place the game talks to a QPU. It is deliberately **not** the same code
-path as :mod:`qcheckers.quantum.execution`, which runs the standalone circuit demo and
-is allowed to fall back to the local Aer simulator. Live gameplay is not: a missing key,
-instance or backend, or a failed/timed-out job, raises :class:`QuantumMeasurementError`
-and the room is left exactly as it was. Never a silent Aer or RNG substitution.
+This is the only hardware path. A missing key, instance or backend, or a failed or
+timed-out job, raises :class:`QuantumMeasurementError` and the room is left exactly as
+it was. An unusable (non-candidate) bitstring is refused with code
+``quantum_invalid_outcome``. Never a silent Aer or RNG substitution.
 
 One shot is submitted per collapse. The returned bitstring is mapped to a candidate
-square by :mod:`qcheckers.quantum.game_measure`; an unused/noisy basis state takes that
-module's deterministic fallback and is flagged in provenance.
+square by :mod:`qcheckers.quantum.game_measure`.
 
 Credential hygiene: the token is read from the environment, held on this object, and
 never placed in an exception message, a log line or a view payload. Provider exceptions
@@ -51,16 +49,14 @@ class QuantumMeasurementError(RuntimeError):
 class Provenance:
     """What actually produced one sampled square: the hardware trail, made visible.
 
-    ``used`` is ``"measured"`` when the bitstring mapped to a candidate square and
-    ``"invalid_fallback"`` when it did not (an unused basis state or hardware noise) and
-    :func:`qcheckers.quantum.game_measure.deterministic_fallback` chose instead. There is
-    no token or account detail here.
+    Records the backend and job that resolved the collapse, the raw measured
+    bitstring and the candidate square it mapped to, alongside the pre-collapse
+    distribution. There is no token or account detail here.
     """
 
     backend: str
     job_id: str
     bitstring: str
-    used: str
     sampled: Square
     probability: float
     sites: tuple[Site, ...]
@@ -70,7 +66,6 @@ class Provenance:
             "backend": self.backend,
             "job_id": self.job_id,
             "bitstring": self.bitstring,
-            "used": self.used,
             "sampled": list(self.sampled),
             "probability": self.probability,
             "sites": [[list(square), weight] for square, weight in self.sites],
@@ -186,10 +181,7 @@ class IBMHardwareSampler:
         return self._resolved_backend or self._backend_name or "IBM Quantum (unresolved)"
 
     def __call__(self, sites: Sequence[Site]) -> tuple[Square, float]:
-        from qcheckers.quantum.game_measure import (
-            build_measurement_circuit,
-            deterministic_fallback,
-        )
+        from qcheckers.quantum.game_measure import build_measurement_circuit
 
         # ``sites`` arrives as a tuple from the engine; normalise so provenance and the
         # circuit always describe the same, immutable distribution.
@@ -215,16 +207,17 @@ class IBMHardwareSampler:
         self._resolved_backend = backend
         bitstring = _dominant_bitstring(counts)
         square = mapping.get(bitstring)
-        used = "measured"
         if square is None:
-            square = deterministic_fallback(frozen)
-            used = "invalid_fallback"
+            raise QuantumMeasurementError(
+                f"IBM Quantum returned an unusable measurement outcome ({bitstring!r}); "
+                "the collapse was refused",
+                code="quantum_invalid_outcome",
+            )
         weight = next((w for s, w in frozen if s == square), 0.0)
         self.last = Provenance(
             backend=backend,
             job_id=job_id,
             bitstring=bitstring,
-            used=used,
             sampled=square,
             probability=weight,
             sites=frozen,
@@ -235,29 +228,17 @@ class IBMHardwareSampler:
 def sampler_from_env(
     *, runner: Runner | None = None
 ) -> IBMHardwareSampler | None:
-    """Build a sampler when IBM credentials are configured, else ``None``.
+    """Build a sampler when IBM hardware is configured, else ``None``.
 
-    ``None`` is the signal that the room runs its normal deterministic game. Presence of
-    a token enables hardware mode; ``IBM_QUANTUM_INSTANCE`` and ``IBM_QUANTUM_BACKEND``
-    refine it. No key means no hardware and no error -- the offline game is still fully
-    playable.
+    ``None`` is the signal that the room runs the ordinary offline game. Only
+    ``QISKIT_IBM_TOKEN`` is accepted; legacy token names are ignored.
+    ``IBM_QUANTUM_INSTANCE`` and ``IBM_QUANTUM_BACKEND`` refine the hardware path. No
+    token means no hardware and no error -- the offline game is still fully playable.
 
-    Accepted token variables, in precedence order:
-
-    1. ``QISKIT_IBM_TOKEN`` -- the name current ``qiskit-ibm-runtime`` reads, and the
-       one to prefer. This is what IBM's own docs and Vercel setups use.
-    2. ``IBM_CLOUD_API_KEY`` / ``IBM_QUANTUM_API_KEY`` -- the older names. Still honoured
-       so an existing deployment does not silently fall back to the offline game, which
-       would look like "hardware mode is on" while measuring nothing.
-
-    Never use a ``NEXT_PUBLIC_`` prefix for any of these: that would inline the token
-    into the client bundle and publish it to every visitor.
+    Never use a ``NEXT_PUBLIC_`` prefix for the token: that would inline it into the
+    client bundle and publish it to every visitor.
     """
-    token = ""
-    for name in ("QISKIT_IBM_TOKEN", "IBM_CLOUD_API_KEY", "IBM_QUANTUM_API_KEY"):
-        token = os.environ.get(name, "").strip()
-        if token:
-            break
+    token = os.environ.get("QISKIT_IBM_TOKEN", "").strip()
     if not token:
         return None
     timeout = os.environ.get("IBM_QUANTUM_TIMEOUT", "").strip()

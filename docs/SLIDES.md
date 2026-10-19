@@ -63,10 +63,12 @@ Show the live 50/50 two-target split and Level 3 merge. The optional IBM path pr
 a selected piece's measurement distribution and samples one shot, then projects the
 CPU state using that result. Agent simulations never submit QPU jobs.
 
-The separate legacy Qiskit/Aer circuit demo uses a 0.50/0.25/0.25 three-site
-distribution from the archived toy model. Its inverse-preparation experiment shows
-phase effects but is not the live merge gate. No real hardware run is claimed without
-a job record and observed result.
+When `QISKIT_IBM_TOKEN` is configured, each collapse submits one shot of a measurement
+circuit from `qcheckers/quantum/game_measure.py` to IBM Quantum and maps the bitstring
+to a candidate square. A bitstring that maps to no candidate square is refused with
+`quantum_invalid_outcome`; an unavailable job is refused with `quantum_unavailable`.
+No simulator or random substitution is used. No real hardware run is claimed without a
+job record and observed result.
 
 ## 8. Limitations (read them, don't hide them)
 
@@ -97,6 +99,5 @@ measurement cost, entanglement, decoherence — to anyone who plays it. *Thank t
   abstraction, unevaluated, never batched. It says so on screen and in §7.
 - *"Where is the actual quantum computing?"* → Complex amplitudes are simulated on
   the CPU in live play. Optional IBM hardware supplies a measurement sample for a
-  selected piece; it does not evolve the persistent board. The Qiskit/Aer demo is a
-  separate circuit artifact. Provider wiring is tested with mocks; this review does
-  not claim a real QPU execution.
+  selected piece; it does not evolve the persistent board. Provider wiring is tested
+  with mocks; this review does not claim a real QPU execution.

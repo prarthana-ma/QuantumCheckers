@@ -10,19 +10,21 @@ same game mechanics as genuine quantum circuits.
 
 What lives here
 ---------------
-* :mod:`qcheckers.quantum.circuits` — split, observe, and interference circuits.
-* :mod:`qcheckers.quantum.classical` — the classical reference (stdlib only),
-  mirroring the engine's constants so quantum and classical can be compared
-  numerically.
-* :mod:`qcheckers.quantum.validate` — Aer-backed validation runner, always offline.
-* :mod:`qcheckers.quantum.execution` — optional IBM runner with local Aer fallback.
+* :mod:`qcheckers.quantum.game_measure` — the real measurement circuit for live
+  collapses. The hardware transport is :mod:`server.quantum_measure`.
 
 Execution configuration
 -----------------------
-The CLI uses IBM Quantum only when ``IBM_CLOUD_API_KEY`` (or
-``IBM_QUANTUM_API_KEY``) is configured. Install ``requirements-ibm.txt`` for that
-optional path. With no key, or when IBM is unavailable, it uses local Aer. The
-game server continues using the documented toy engine in every configuration.
+There are exactly two modes:
+
+1. No ``QISKIT_IBM_TOKEN``: the offline toy engine runs. No simulator is used.
+2. ``QISKIT_IBM_TOKEN`` set: every collapse submits one shot of a real measurement
+   circuit to IBM Quantum. ``IBM_QUANTUM_INSTANCE``, ``IBM_QUANTUM_BACKEND`` and
+   ``IBM_QUANTUM_TIMEOUT`` are optional, and ``QCHECKERS_DISABLE_HARDWARE`` is the
+   off-switch. A failed job or an unusable outcome refuses the move and leaves the
+   state unchanged.
+
+``requirements-ibm.txt`` is still needed for hardware mode.
 
 Honesty boundary
 ----------------

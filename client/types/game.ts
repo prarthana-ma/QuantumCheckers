@@ -143,16 +143,14 @@ export type CollapseCause = "observe" | "capture" | "rejoin" | "join" | "decoher
  * Where one live collapse's square came from, when the room ran on a QPU.
  *
  * Present on the collapse `last_event` and mirrored in `GameState.quantum.last`. It
- * names the backend and job, the raw bitstring, and whether the outcome was a clean
- * measurement (`used: "measured"`) or the deterministic fallback for an unused/noisy
- * basis state (`used: "invalid_fallback"`). No credential ever appears here.
+ * names the backend and job, the raw bitstring, and the bitstring-to-square mapping
+ * (the sampled square and its probability). No credential ever appears here.
  */
 export interface QuantumProvenance {
     backend: string;
     job_id: string;
     /** Raw bitstring returned by the sampler, e.g. `"01"`. */
     bitstring: string;
-    used: "measured" | "invalid_fallback";
     sampled: Square;
     probability: Chance;
     sites: Site[];

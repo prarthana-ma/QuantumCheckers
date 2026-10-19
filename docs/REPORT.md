@@ -39,9 +39,9 @@ probability-aware agent combines chance-weighted material, normalized progress a
 chance-weighted rollout sampling; the comparison is not an uncertainty-only evaluation
 of that agent against its baseline. The current local game server separately defaults
 to `PaperQuantumEngine`, an independent CPU complex-amplitude implementation. It was
-not used to produce these archived results. A separate Qiskit circuit demonstration and
-an optional IBM measurement-sampling path are also present; neither implies a persistent
-board state on quantum hardware. The archived results remain bounded by the toy
+not used to produce these archived results. An optional IBM measurement-sampling path is
+also present; it does not imply a persistent board state on quantum hardware. The
+archived results remain bounded by the toy
 engine's rules, board size, search configuration and narrow literature search.
 
 **Keywords:** quantum checkers, Monte Carlo Tree Search, archived toy-engine study,
@@ -86,7 +86,6 @@ measurement, reproducibility, complex amplitudes
 
 | Abbreviation | Meaning |
 | --- | --- |
-| Aer | Qiskit Aer quantum circuit simulator |
 | API | Application Programming Interface |
 | IBM | International Business Machines |
 | IEEE | Institute of Electrical and Electronics Engineers |
@@ -121,10 +120,10 @@ seeds and checked by replay.
   under matched experimental conditions.
 - Measure the effect of enabling voluntary Observe in the archived toy engine's matched
   ablation; the current paper engine offers voluntary Observe only at custom Level 4.
-- Demonstrate superposition, measurement and phase-dependent interference in separate
-  quantum circuits.
+- Encode a candidate-square distribution as a one-shot measurement circuit for the
+  optional IBM hardware path.
 - Deliver QCheckers as a browser game and document the limits between the game model,
-  circuit demonstration and reference paper.
+  the hardware collapse path and the reference paper.
 
 ### 1.3 Scope
 
@@ -170,7 +169,7 @@ progress evaluation. These legacy-agent details do not describe the current live
 evaluation. This is a project-level implementation of a direction suggested by the
 paper; the available literature search is not broad enough to claim global novelty.
 
-The paper's linked implementation is consulted only as a read-only code reference [9].
+The paper's linked implementation is consulted only as a read-only code reference [8].
 
 ### 2.3 Gap addressed and limits of the review
 
@@ -208,13 +207,13 @@ game, the general MCTS algorithm, or a claim to have originated quantum checkers
 | Baseline material score values a spread piece by its maximum occupancy chance | Legacy `ProbAwareAgent` uses chance-weighted site values, normalized progress and chance-weighted rollout actions | This changes more than uncertainty weighting alone; the Observe ablation does not estimate the isolated effect of the full agent heuristic |
 | Paper suggests probability-informed rollout valuation as future work [1] | Archived study tests one probability-aware search design on the 4×4 toy engine; current live play has a separate state-tree agent | Archived win-rate interval includes zero; no strength claim is made for the live paper-engine agent |
 | Game paper provides its own game and AI analysis [1] | Build QCheckers as a browser teaching/demo interface with a local paper-based engine | Independent implementation; not upstream Cheqqers and not the source of archived study results |
-| Probability-only board model cannot represent relative phase | Add independent split, measurement and interference circuits | Qiskit/Aer simulator output; circuits are not connected to the game rules |
+| Probability-only board model cannot represent relative phase | Add a CPU sparse complex-amplitude engine and an optional one-shot IBM measurement path | The QPU supplies a collapse sample only; the persistent board state stays on the CPU |
 
 *Table 2. Project changes relative to the cited research anchor.*
 
 The two research ideas are candidate contributions **relative to the reference
 implementation**, not verified field-wide novelties. The novelty search remains
-targeted and incomplete. The separate circuit demonstration and web application are
+targeted and incomplete. The web application and the optional hardware-sampling path are
 engineering deliverables; neither expands the experimental claims.
 
 ## 4. Methodology and system design
@@ -275,15 +274,15 @@ record from its seed and logged parameters and requires byte-identical output.
 The paths use two separate engines. Archived experiment scripts use
 `DeterministicToyEngine` and frozen legacy agents. The local FastAPI server defaults to
 `PaperQuantumEngine` and `LiveMCTSAgent`; the Next.js client displays its marginals and
-sends actions. The upstream Cheqqers engine is not integrated. The standalone
-Qiskit/Aer circuit demonstration is a third, independent path. Detailed boundaries are
-in [`RULE_CONFORMANCE.md`](RULE_CONFORMANCE.md).
+sends actions. The upstream Cheqqers engine is not integrated. The optional IBM
+measurement path supplies one-shot collapse samples; it is not a third game engine.
+Detailed boundaries are in [`RULE_CONFORMANCE.md`](RULE_CONFORMANCE.md).
 
 <a id="figure-1-system-architecture"></a>
 
-![Architecture diagram from the archived study showing the toy engine, experiment runner, game server and browser client, with a separate quantum-circuit demonstration](figures/architecture.svg)
+![Architecture diagram from the archived study showing the toy engine, experiment runner, game server and browser client, with the optional one-shot IBM collapse sample](figures/architecture.svg)
 
-*Figure 1. Historical architecture for the archived toy-engine study. Current local gameplay uses the paper-based engine and live search; it is separate from the archived batch path. The circuit demo is independent of both.*
+*Figure 1. Historical architecture for the archived toy-engine study. Current local gameplay uses the paper-based engine and live search; it is separate from the archived batch path. The optional IBM measurement sample is independent of both.*
 
 ### 4.5 Execution workflow
 
@@ -293,17 +292,17 @@ in [`RULE_CONFORMANCE.md`](RULE_CONFORMANCE.md).
 
 *Figure 2. Research and browser-game execution workflows.*
 
-### 4.6 Circuit demonstration
+### 4.6 Collapse measurement circuit
 
-The split circuit prepares a two-qubit state whose measurement probabilities target
-0.50, 0.25 and 0.25 for the three valid locations; the fourth basis state remains
-empty. The Observe circuit measures the prepared state. The interference circuit
-applies a relative phase and reverses the preparation before measurement. In the
-simulator sample, \(P(|00\rangle)\) changes from 1.000 at phase 0 to 0.623 at
-\(\pi/2\), then 0.252 at \(\pi\). The classical reference has no phase parameter, so
-it cannot reproduce this phase dependence. The demonstration is circuit-level
-evidence, not evidence that the game engine is quantum. The demonstration uses
-Qiskit and Aer [7], [8].
+A live collapse is encoded as a fresh measurement circuit by
+`qcheckers/quantum/game_measure.py` [7]: one qubit per bit needed for the candidate count,
+one basis state per candidate square with amplitude \(\sqrt{p_s}\), and a terminal
+measurement. The circuit prepares exactly the candidate-square distribution stored by
+the CPU engine; it does not prepare the full board state. The measured bitstring maps
+back to a square by basis-state index (`|00>` = first site, `|01>` = second, and so on).
+The circuit is submitted as exactly one shot, and every collapse re-prepares a fresh
+circuit; no qubit stays loaded between turns. If the shot returns a basis state that
+maps to no candidate square, the move is refused rather than substituting a value.
 
 ### 4.7 Optional IBM measurement sampling
 
@@ -314,13 +313,15 @@ measurement shot to select the projected square. The returned sample updates the
 CPU-held state; it does not transfer the board to a QPU or preserve a quantum state
 between turns. Ordinary moves, splits, entanglement and merge/interference remain CPU
 state transitions. Level 1–3 measurements follow capture rules; custom Level 4 also has
-voluntary Observe and decoherence collapse. The standalone Qiskit circuit examples in
-section 4.6 are separate from this state path.
+voluntary Observe and decoherence collapse. The measurement circuit in section 4.6 is
+used only to sample this collapse; it does not hold the state.
 
 The hardware boundary has been tested against a mocked provider; no real QPU job was
 run for the archived results or verified for this local source snapshot. Without a
-sampler, collapse uses the engine's seeded local RNG. A configured hardware failure
-refuses the action without committing a partial state. See
+sampler, collapse uses the engine's seeded local RNG. A failed or timed-out job is
+refused with `quantum_unavailable`; a bitstring that maps to no candidate square is
+refused with `quantum_invalid_outcome`. Either way the action is refused without
+committing a partial state. See
 [`HARDWARE_COLLAPSE.md`](HARDWARE_COLLAPSE.md) and
 [`RULE_CONFORMANCE.md`](RULE_CONFORMANCE.md).
 
@@ -338,8 +339,8 @@ refuses the action without committing a partial state. See
 | Current local live search | State-tree UCT; room tiers use 200/400 iterations, depth 4, rollout cap 8 and deterministic branch-work limit |
 | Experiment records | JSON Lines with frozen schema, seeds and parameters |
 | Statistical analysis | Python; Wilson score intervals and Newcombe difference intervals |
-| Quantum-circuit demo | Qiskit and Qiskit Aer local simulator; optional IBM execution path, not used for reported results |
-| Live QPU collapse (opt-in) | Qiskit + qiskit-ibm-runtime; one shot per collapse when `IBM_CLOUD_API_KEY` is set, else disabled |
+| Collapse measurement circuit | `qcheckers/quantum/game_measure.py`; one measurement shot per collapse, not used for reported results |
+| Live QPU collapse (opt-in) | Qiskit + qiskit-ibm-runtime; one shot per collapse when `QISKIT_IBM_TOKEN` is set, else disabled |
 | Backend | FastAPI and Uvicorn; WebSocket game state; Google Cloud Run, asia-south1 |
 | Browser client | Next.js 16, React 19 and TypeScript; Vercel deployment |
 | Test environment recorded | Windows 11, Python 3.13.5, Node.js 22.16, npm 11.6 |
@@ -581,10 +582,7 @@ pp. 873–890, 1998, doi: [10.1002/(SICI)1097-0258(19980430)17:8%3C873::AID-SIM7
 [7] Qiskit contributors, “Qiskit documentation.” [Online]. Available:
 https://quantum.cloud.ibm.com/docs/en/guides.
 
-[8] Qiskit Aer contributors, “Qiskit Aer documentation.” [Online]. Available:
-https://qiskit.github.io/qiskit-aer/.
-
-[9] M. Raat *et al.*, “Cheqqers,” source repository, paper-related code reference,
+[8] M. Raat *et al.*, “Cheqqers,” source repository, paper-related code reference,
 [github.com/raatmarien/cheqqers](https://github.com/raatmarien/cheqqers). Accessed
 October 2026. Read-only reference; no code copied or integrated.
 
@@ -620,7 +618,6 @@ python scripts/run_ablation.py --agent-a prob --agent-b random -n 170 --write-lo
 python scripts/make_plots.py
 python scripts/verify_results.py --json results/verification.json
 python scripts/browser_check.py
-python -m qcheckers.quantum
 ```
 
 The environment, log format, and detailed run instructions are recorded in

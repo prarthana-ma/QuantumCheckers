@@ -182,7 +182,7 @@ have a head start.
 - **Initial project brief** — `docs/quantum-checkers-project.md`, 21 sections including the FAQ, kill test and fallbacks. It is retained as the planning brief, not current status.
 - **This team split**, with reading assignments, ownership, timeline and progress.
 - **README rewritten** around the research question, with a status banner reconciled to the verified records (toy-engine numbers only, AGPL-3.0 confirmed with no upstream code copied, novelty pending-form).
-- **Dependencies cleaned:** PennyLane and SciPy were removed with the earlier project. The current project also includes FastAPI/Uvicorn, Qiskit/Aer and the Next.js client; see the root requirements and client lockfile.
+- **Dependencies cleaned:** PennyLane and SciPy were removed with the earlier project. The current project also includes FastAPI/Uvicorn, the IBM SDK for the optional hardware path, and the Next.js client; Qiskit Aer is a test-only dependency. See the root requirements and client lockfile.
 - **Package in place and importable:** `qcheckers.engine` (`protocol.py`, `toy.py`), `qcheckers.agents` (`base`, `random_agent`, `mcts_baseline`, `observe_agent`, `prob_aware`), `qcheckers.experiment` (`schema`, `runner`, `config`, `stats`), `qcheckers.viz` (`replay`).
 - The 12 October snapshot had **270 tests**; see `HANDOFF.md` for the current test count.
 - **Game protocol frozen** (`docs/PROTOCOL.md`): REST rooms plus WebSocket moves, JSONL log schema, reconnect semantics. The primary game client is Next.js (`client/`); a static alternative remains in `viewer/`.

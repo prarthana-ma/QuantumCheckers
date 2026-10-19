@@ -22,8 +22,8 @@ state. The source of truth is `README.md`, `docs/REPORT.md`,
 - The report title-page identity fields and team contribution identities remain placeholders, as explicitly requested by the user on 15 October 2026.
 - The live UI screenshots can be regenerated with `python scripts/capture_report_screenshots.py` (Playwright + Chromium required).
 - The Python game, FastAPI server, static viewer, and primary Next.js client are present.
-- The Qiskit/Aer demonstration is under `qcheckers/quantum/`; it is separate from both game engines and the archived study.
-- The **opt-in live IBM path** is implemented and tested against a mocked provider boundary. It samples a collapse only; it does not run the persistent board state on a QPU. No real hardware job is claimed. See `docs/HARDWARE_COLLAPSE.md` and `docs/RULE_CONFORMANCE.md`.
+- The live path's one-shot collapse circuit is built by `qcheckers/quantum/game_measure.py`; it is separate from both game engines and the archived study.
+- The **opt-in live IBM path** is implemented and tested against a mocked provider boundary, and one real one-shot job was run on `ibm_fez` on 19 October 2026 (job `dbb5um9gv2cc73e7ra60`, 2 s QPU charge) to confirm the path end to end. It samples a collapse only; it does not run the persistent board state on a QPU. See `docs/HARDWARE_COLLAPSE.md` and `docs/RULE_CONFORMANCE.md`.
 - The archived experiment outputs, plots and numerical conclusions all belong to the 4×4 toy engine. The current local paper engine and live agent have not been evaluated by those batches.
 - The upstream Cheqqers engine remains deliberately unintegrated; no upstream or adapter code ships with the project (decision recorded in `docs/ATTRIBUTION.md`).
 - The novelty search remains narrow, so the report does not claim a verified novel contribution.
@@ -31,7 +31,7 @@ state. The source of truth is `README.md`, `docs/REPORT.md`,
 
 ## Verified in this review
 
-- `python -m pytest -o addopts= --strict-markers -q`: **370 tests passed** on 15 October 2026, including blocked quantum destinations, promotion/backward kings, IBM one-shot validation, invalid timeout handling and live-log verification boundaries.
+- `python -m pytest -o addopts= --strict-markers -q`: **449 tests passed** on 19 October 2026, including blocked quantum destinations, promotion/backward kings, IBM one-shot validation, invalid timeout handling and live-log verification boundaries.
 - Client `npm test`: **19/19 passed**, covering board interaction and error lifetimes.
 - `npm run typecheck`: passed.
 - `npm run build`: passed (Next.js production build).
@@ -60,7 +60,7 @@ execution were not verified in this local review.
 - Allowed known paper-engine live logs to receive the verifier's metadata-only checks,
   while continuing to reject paper-engine experiment replay claims.
 - Updated slides, circuit explanations, screenshot captions and hardware documentation
-  to distinguish the live engine from the archived toy study and standalone circuits.
+  to distinguish the live engine from the archived toy study and the mocked hardware boundary.
 
 ## Setup
 
@@ -71,7 +71,7 @@ From the repository root, install Python dependencies with `python -m pip instal
 - Archived experiment results use the 4×4 probability-only toy engine; they do not measure the current local paper engine or Live MCTS.
 - The local paper engine is an independent implementation; the upstream Cheqqers engine is not integrated, and the selected split-matrix completion is documented as a local modeling choice.
 - Archived batches do not evaluate Levels 3 or 4; paper Level 3 is available in live play and custom Level 4 adds decoherence and voluntary Observe.
-- Qiskit circuits are offline demonstrations; no hardware run was made.
+- Qiskit builds the live collapse circuit and is used in tests; the archived study used no hardware.
 - The ablation's win-rate interval includes zero; report it as a null result.
 - The narrow follow-up search does not support a definitive novelty claim.
 

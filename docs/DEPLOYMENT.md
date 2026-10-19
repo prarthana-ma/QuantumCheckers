@@ -22,7 +22,7 @@ Two different things are easy to confuse, so they are separated here.
 
 **Implemented in this repository, verified by tests:** the opt-in live-hardware path
 (a room resolves an Observe / Level-4 decoherence collapse with one IBM Quantum
-measurement when `QISKIT_IBM_TOKEN` is configured), its error/fallback-free behaviour,
+measurement when `QISKIT_IBM_TOKEN` is configured), its explicit refusal behaviour,
 and the client's pending/error surfaces. It is exercised by `tests/test_hardware_collapse.py`
 against a **mocked** IBM boundary.
 
@@ -61,19 +61,21 @@ Vercel Production and Preview both have `NEXT_PUBLIC_API_URL` set to the Cloud R
 HTTPS origin. WSS is derived from that value. If the backend URL changes, update
 the Vercel variable and redeploy: Next.js inlines it during the build.
 
-## IBM Quantum and offline fallback
+## IBM Quantum and the offline mode
 
-Gameplay uses `DeterministicToyEngine`, preserving the reported experiment rules.
-Two things can talk to IBM Quantum, and they behave differently on failure:
+Gameplay uses `DeterministicToyEngine`, preserving the reported experiment rules. The live
+server has exactly two modes:
 
-* **The live game (opt-in, no fallback).** When `QISKIT_IBM_TOKEN` is set, a live room
-  resolves each collapse (Observe, or the Level-4 decoherence expiry) with one
-  measurement shot on IBM hardware. If the key, instance, backend or job is
-  unavailable, the move is refused with a clear `quantum_unavailable` error and the
-  game state is left unchanged -- **there is no simulator or random fallback on this
-  path**. Leave the key unset for the ordinary offline game; nothing is submitted.
-* **The standalone circuit demo (Aer fallback).** Unchanged: it may fall back to the
-  local simulator.
+* **Offline (default).** With no `QISKIT_IBM_TOKEN`, the ordinary game runs on the CPU
+  engine: no simulator, no circuits, and no job is submitted.
+* **Live hardware (opt-in).** When `QISKIT_IBM_TOKEN` is set, a live room resolves each
+  collapse (Observe, or the Level-4 decoherence expiry) with one measurement shot on IBM
+  hardware. If the key, instance, backend or job is unavailable, the move is refused with
+  error code `quantum_unavailable` and the game state is left unchanged. If the measured
+  bitstring maps to no candidate square (an unused basis state, or hardware noise), the
+  move is refused with `quantum_invalid_outcome` and the state is likewise unchanged.
+  There is no simulator or random substitution on this path -- **nothing is ever
+  substituted for a refused outcome**.
 
 For the live path, install the server's IBM requirements and set the variables
 privately in the environment. Never put IBM keys in `NEXT_PUBLIC_*` and never commit
@@ -82,7 +84,7 @@ them:
 ```bash
 python -m pip install -r requirements-server.txt   # includes the IBM Runtime SDK
 # QCHECKERS_DISABLE_HARDWARE=1   # optional hard off-switch for a server
-# QISKIT_IBM_TOKEN=<api key>       # enables the live path (older IBM_CLOUD_API_KEY still honoured)
+# QISKIT_IBM_TOKEN=<api key>       # enables the live path; legacy IBM key names are ignored
 # IBM_QUANTUM_INSTANCE=<crn>     # recommended instance CRN
 # IBM_QUANTUM_BACKEND=<device>   # optional named device, else least-busy
 # IBM_QUANTUM_TIMEOUT=<seconds>  # default 180; the wait runs off the event loop
@@ -96,36 +98,31 @@ apply concurrent moves to the same room. Each `StateUpdate` carries a `quantum` 
 backend and show the pending state. No credential ever appears in a payload, log or
 error message.
 
-The independent circuit demonstration also supports optional IBM Quantum execution:
+To exercise the live path manually, install the server's IBM-enabled dependencies and
+start the server with the variables set in the shell:
 
 ```powershell
-# Offline: no API key needed; the circuit demo uses local Aer.
-python -m qcheckers.quantum
-
-# Optional hardware support. Set credentials privately in your shell.
-python -m pip install -r requirements-ibm.txt
-# QISKIT_IBM_TOKEN: IBM Quantum API token (older IBM_CLOUD_API_KEY also honoured)
-# IBM_QUANTUM_INSTANCE: recommended instance CRN
-# IBM_QUANTUM_BACKEND: optional named device
-python -m qcheckers.quantum
+python -m pip install -r requirements-server.txt   # includes the IBM Runtime SDK
+$env:QISKIT_IBM_TOKEN="<api key>"      # enables the live path
+$env:IBM_QUANTUM_INSTANCE="<crn>"      # recommended instance CRN
+$env:IBM_QUANTUM_BACKEND="<device>"    # optional; otherwise least-busy
+python -m server                       # http://127.0.0.1:8000
 ```
 
-The runner reads credentials only from environment variables. A missing key, SDK,
-unavailable service, or failed/slow job falls back to local Aer, and the CLI names
-the backend used. Without an instance CRN, automatic selection is limited to Open
-Plan instances. Circuit jobs are submitted as one batch, with a 120-second result
-wait; the runner attempts cancellation before falling back after a job failure.
+The server reads plain environment variables and does **not** auto-load a `.env` file:
+set them in the shell — on Windows, `$env:QISKIT_IBM_TOKEN="..."` — or load them yourself
+before starting the server. Open a room in the client and play to the first collapse
+(Observe, or a Level-4 decoherence expiry); the server submits one measurement shot to
+IBM Quantum and writes the measured square into game state. A refused outcome
+(`quantum_invalid_outcome` or `quantum_unavailable`) leaves the board unchanged and the
+client shows the error. The full design and verification record is in
+[`HARDWARE_COLLAPSE.md`](HARDWARE_COLLAPSE.md).
 
-Local Aer is the college-project fallback because it still demonstrates real
-superposition, measurement, and phase-dependent interference without credentials.
-The toy game model has no phase and cannot demonstrate that physics. Neither IBM
-execution nor Aer changes the game's rules. No live IBM hardware run was performed
-in this deployment because no IBM key was configured.
-
-The circuit runner remains a Python CLI. The public game API does not accept
-credentials from clients; it reads the IBM key from the server environment only, and
-submits one collapse shot per collapsing action when that key is present. Never put
-IBM keys in `NEXT_PUBLIC_*` variables or commit them to source control.
+The public game API never accepts credentials from clients; it reads the IBM token from
+the server environment only and submits one collapse shot per collapsing action when that
+token is present. Never put IBM keys in `NEXT_PUBLIC_*` variables or commit them to source
+control. The legacy names `IBM_CLOUD_API_KEY` and `IBM_QUANTUM_API_KEY` are ignored;
+only `QISKIT_IBM_TOKEN` enables the live path.
 
 ### Enabling the live-hardware path on Cloud Run (operator runbook)
 
@@ -134,14 +131,14 @@ environment. The hosted demo does not set it. To enable it without leaking the k
 source, the image, the frontend bundle, logs, or your shell history:
 
 1. In Google Cloud Console, open **Security → Secret Manager → Create secret**. Name it
-   `ibm-cloud-api-key`, paste the IBM API key into the secret value field, and create the
+   `ibm-quantum-token`, paste the IBM API key into the secret value field, and create the
    secret. Do not put the key in a command, a file in the repository, or a Vercel
    variable. Secret Manager keeps the value out of command history and deployment source.
 
 2. Let the runtime service account read that secret:
 
    ```bash
-   gcloud secrets add-iam-policy-binding ibm-cloud-api-key \
+   gcloud secrets add-iam-policy-binding ibm-quantum-token \
      --member=serviceAccount:quriousminds-runtime@project-8c50e5eb-7ddd-4a46-9c8.iam.gserviceaccount.com \
      --role=roles/secretmanager.secretAccessor \
      --project project-8c50e5eb-7ddd-4a46-9c8

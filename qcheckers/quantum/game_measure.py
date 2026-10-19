@@ -1,9 +1,8 @@
 """Turn a live game collapse distribution into a real measurement circuit.
 
-This is the bridge the report previously said did not exist: the *live* game's
-collapse distributions (``qcheckers.engine.toy``) are encoded into a Qiskit circuit
-that is submitted to IBM Quantum hardware, and the measured bitstring is mapped back
-to the square that is written into game state.
+The *live* game's collapse distributions (``qcheckers.engine.toy``) are encoded into a
+Qiskit circuit that is submitted to IBM Quantum hardware, and the measured bitstring is
+mapped back to the square that is written into game state.
 
 Encoding
 --------
@@ -13,25 +12,20 @@ produces). We need ``q = ceil(log2 N)`` qubits:
 
 * ``N = 2`` -> 1 qubit -> ``|0>`` = site 0, ``|1>`` = site 1.
 * ``N = 3`` -> 2 qubits -> ``|00>`` = site 0, ``|01>`` = site 1, ``|10>`` = site 2,
-  and ``|11>`` is **unused** (target probability 0). This matches the convention used
-  by the standalone ``circuits.split_circuit`` demo.
+  and ``|11>`` is **unused** (target probability 0).
 
 Bitstrings follow Qiskit's convention: the rightmost character is qubit 0, so the
 integer index of a measured key is its plain base-2 value.
 
 The state is prepared by :meth:`~qiskit.QuantumCircuit.initialize` with real
-amplitudes ``sqrt(chance)`` per basis state. Qiskit turns that into explicit gates at
-transpile time; the standalone demo hand-rolls the three-site case with ``RY``/``CRY``
-so it can also demonstrate interference, but the game path needs every ``N`` and every
+amplitudes ``sqrt(chance)`` per basis state. The game path needs every ``N`` and every
 weight, so it builds the amplitude vector directly.
 
 Invalid / noisy outcomes
 ------------------------
 ``shots = 1`` on real hardware can return any basis state, including the unused one.
-:func:`deterministic_fallback` defines what the game does then: take the highest-weight
-site, ties broken by the piece's own site order. That is deterministic, needs no
-simulator and no RNG, and is recorded in the collapse provenance (``used``) so a log
-never has to guess whether the hardware answer was clean.
+The live sampler REFUSES such an outcome (:class:`server.quantum_measure.QuantumMeasurementError`
+with code ``quantum_invalid_outcome``); nothing is substituted -- no simulator, no RNG.
 """
 
 from __future__ import annotations
@@ -79,7 +73,7 @@ def build_measurement_circuit(sites: Sequence[Site]) -> tuple[QuantumCircuit, di
 
     Returns ``(circuit, mapping)`` where ``mapping`` keys are the get_counts bitstrings
     that correspond to real candidate squares. Any bitstring absent from ``mapping`` is
-    an invalid/noisy outcome and is handled by :func:`deterministic_fallback`.
+    an invalid/noisy outcome: it is unusable and the live sampler refuses it.
     """
     if len(sites) < 2:
         raise ValueError(f"a collapse needs at least 2 sites; got {len(sites)!r}")
@@ -93,44 +87,9 @@ def build_measurement_circuit(sites: Sequence[Site]) -> tuple[QuantumCircuit, di
     return circuit, mapping
 
 
-def bitstring_to_square(bitstring: str, sites: Sequence[Site], qubits: int | None = None) -> Square | None:
-    """Map a measured bitstring back to a candidate square, or ``None`` if invalid.
-
-    ``qubits`` defaults to :func:`qubits_for`; pass it when the caller already has it,
-    so a stray leading zero is normalised the same way the circuit produced it.
-    """
-    width = qubits_for(len(sites)) if qubits is None else qubits
-    text = bitstring.strip()
-    # get_counts sometimes renders a single-qubit key without padding; normalise.
-    if text and len(text) < width:
-        text = text.rjust(width, "0")
-    _, mapping = build_measurement_circuit(sites)
-    if text in mapping:
-        return mapping[text]
-    return None
-
-
-def deterministic_fallback(sites: Sequence[Site]) -> Square:
-    """The square a collapse takes when the measured basis state is not a candidate.
-
-    Highest weight wins; an exact tie goes to the site listed first, so the choice is a
-    pure function of the distribution and never depends on the RNG, the clock or a
-    simulator.
-    """
-    if not sites:
-        raise ValueError("cannot fall back on an empty distribution")
-    best_square, best_weight = sites[0][0], float(sites[0][1])
-    for square, weight in sites[1:]:
-        if float(weight) > best_weight:
-            best_square, best_weight = square, float(weight)
-    return best_square
-
-
 __all__ = [
     "Site",
     "Square",
-    "bitstring_to_square",
     "build_measurement_circuit",
-    "deterministic_fallback",
     "qubits_for",
 ]

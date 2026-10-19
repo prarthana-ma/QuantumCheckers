@@ -2,7 +2,7 @@
 fastapi>=0.110,<1
 uvicorn[standard]>=0.29,<1
 
-# Live IBM Quantum collapse path, enabled only when IBM_CLOUD_API_KEY is set. The
+# Live IBM Quantum collapse path, enabled only when QISKIT_IBM_TOKEN is set. The
 # server imports these lazily, so it still starts (and plays the offline game) without
 # them; install them to enable hardware-backed gameplay. See docs/DEPLOYMENT.md.
 qiskit>=2.0,<3
