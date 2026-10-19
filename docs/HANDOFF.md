@@ -15,7 +15,7 @@ state. The source of truth is `README.md`, `docs/REPORT.md`,
   `DeterministicToyEngine`; its records do not describe live-engine play.
 - **IBM:** the local game can optionally use IBM Quantum to sample a collapse, while the
   complex board state stays in the CPU engine. The hosted game's active engine revision
-  and any real hardware jobs were not verified for this review.
+  was not verified for this review; one real one-shot job is recorded below.
 
 - The report and slides are present. The report figures are checked in under `docs/figures/`.
 - `docs/REPORT.md` now includes the required report sections, front matter, literature comparison, novelty boundary, design diagrams, live-game screenshots, IEEE-style numbered citations, and appendices.
@@ -46,8 +46,8 @@ The 12 October public deployment checks and historical 57-check static-client re
 remain archived evidence. Today's browser checks target localhost and the current
 PaperQuantumEngine. The archived result verifier replays toy-engine experiment records;
 live room logs receive metadata checks only, not a seed-replay claim. The exact
-environment is recorded in `docs/REPRODUCIBILITY.md`; the public site and real QPU
-execution were not verified in this local review.
+environment is recorded in `docs/REPRODUCIBILITY.md`; the public site was not verified
+in this local review, and the single recorded QPU job (see above) confirms only the path.
 
 ## Corrections completed in the final review
 

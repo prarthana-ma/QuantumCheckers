@@ -316,8 +316,10 @@ state transitions. Level 1–3 measurements follow capture rules; custom Level 4
 voluntary Observe and decoherence collapse. The measurement circuit in section 4.6 is
 used only to sample this collapse; it does not hold the state.
 
-The hardware boundary has been tested against a mocked provider; no real QPU job was
-run for the archived results or verified for this local source snapshot. Without a
+The hardware boundary has been tested against a mocked provider; no real QPU job
+produced or validated the results in this report, and one later one-shot job
+(19 October 2026, recorded in [`docs/HANDOFF.md`](HANDOFF.md)) confirms only the live
+path. Without a
 sampler, collapse uses the engine's seeded local RNG. A failed or timed-out job is
 refused with `quantum_unavailable`; a bitstring that maps to no candidate square is
 refused with `quantum_invalid_outcome`. Either way the action is refused without
@@ -369,8 +371,9 @@ production build. The current local source has since added a paper engine and li
 server path; see `HANDOFF.md` for the latest test count. The 57/57 browser checks,
 1020/1020 deterministic experiment replay, and hosted deployment checks are historical;
 the browser and hosted checks were not rerun for the current paper-engine source. The
-hosted deployment's active engine was not verified. No real IBM hardware job was run.
-These checks verify
+hosted deployment's active engine was not verified, and no real IBM hardware job was
+part of these checks; the single later one-shot job is noted in
+[`docs/HANDOFF.md`](HANDOFF.md). These checks verify
 implementation behavior; they do not establish statistical power beyond the stated
 experimental design or broad novelty.
 
@@ -529,7 +532,9 @@ Next research steps include evaluating the local paper engine and live agent und
 separate, controlled protocol, broadening the literature review, and conducting
 accessibility/user testing. Further engineering work could add persistent room storage.
 The optional IBM path samples a collapse only; the complex board state remains in the
-CPU engine. No real hardware run is claimed here. See section 4.7 and
+CPU engine. No result in this report comes from real hardware; the single recorded
+one-shot job (see [`docs/HANDOFF.md`](HANDOFF.md)) confirms only the live path. See
+section 4.7 and
 [`RULE_CONFORMANCE.md`](RULE_CONFORMANCE.md).
 
 ## 10. Team contributions

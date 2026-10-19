@@ -100,4 +100,4 @@ measurement cost, entanglement, decoherence — to anyone who plays it. *Thank t
 - *"Where is the actual quantum computing?"* → Complex amplitudes are simulated on
   the CPU in live play. Optional IBM hardware supplies a measurement sample for a
   selected piece; it does not evolve the persistent board. Provider wiring is tested
-  with mocks; this review does not claim a real QPU execution.
+  with mocks; one real one-shot job is on record (`docs/HANDOFF.md`).

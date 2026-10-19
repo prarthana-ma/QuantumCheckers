@@ -56,8 +56,9 @@ The engine, agents, runner and statistics layer deliberately import nothing outs
 standard library, so a bare interpreter can run a batch. Qiskit is used by the opt-in
 live hardware path on the game server; Qiskit Aer is a test-only dependency used by the
 hardware-circuit tests. Neither is used by the engine's default sampling or the
-experiment path. The live path is exercised only against a mocked IBM boundary; no real
-hardware job has been recorded.
+experiment path. The live path is exercised against a mocked IBM boundary in the test
+suite; one real one-shot job (19 October 2026) is recorded in `docs/HANDOFF.md` to
+confirm the path end to end.
 The root `requirements.txt` describes supported version ranges; this table records the
 versions in the review environment rather than exact pins.
 

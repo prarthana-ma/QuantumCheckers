@@ -9,8 +9,9 @@ These are different claims and are kept apart on purpose:
   evidence about real hardware behaviour.
 * **Deployment evidence:** the earlier deployment review recorded hardware sampling
   disabled. The public revision and its current configuration were not rechecked in
-  the 15 October 2026 local review. No real QPU execution is claimed by this review.
-  Enabling hardware is an operator action described in [`DEPLOYMENT.md`](DEPLOYMENT.md).
+  the 15 October 2026 local review, and that review claimed no real QPU execution. One
+  later one-shot job (19 October 2026) is recorded in `docs/HANDOFF.md`. Enabling
+  hardware is an operator action described in [`DEPLOYMENT.md`](DEPLOYMENT.md).
 
 **Goal (bounded slice):** when live gameplay actually collapses a spread piece
 (capture measurement, Level-4 Observe, or Level-4 decoherence expiry), the square written into game state must come
@@ -112,9 +113,11 @@ bitstring or an unavailable service refuses the move. Research/offline use is un
   the board unchanged.
 
 ## Deferred / known limitations
-- **No real QPU job has been run.** `tests/test_hardware_collapse.py` mocks the IBM
-  boundary (`server.quantum_measure._run_ibm_measurement`). Running a real hardware job
-  still requires a valid `QISKIT_IBM_TOKEN`; no simulated output is labelled hardware output.
+- **One real QPU job has been run so far.** A local one-shot smoke job on `ibm_fez`
+  (19 October 2026, job `dbb5um9gv2cc73e7ra60`, 2 s QPU charge) confirmed the path end
+  to end; `tests/test_hardware_collapse.py` still mocks the IBM boundary
+  (`server.quantum_measure._run_ibm_measurement`). Running a real hardware job requires
+  a valid `QISKIT_IBM_TOKEN`; no simulated output is labelled hardware output.
 - No full-board quantum state; no entanglement or phase gameplay. Each collapse
   re-prepares a fresh circuit from the stored distribution; no qubit is "loaded"
   between turns.

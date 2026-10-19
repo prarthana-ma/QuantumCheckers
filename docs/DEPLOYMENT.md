@@ -28,10 +28,11 @@ against a **mocked** IBM boundary.
 
 **Deployed in the hosted demo above:** the ordinary sealed toy-engine game, the
 Next.js client, and the music/seat-recovery behaviour. The demo does **not** set
-`QISKIT_IBM_TOKEN`, so `quantum.enabled` is `false` for every room and **no collapse
-has ever been measured on real hardware**. No real QPU job has been run and no result
-in this repository comes from one. Enabling it is an operator action, documented below;
-it was not performed as part of the code change.
+`QISKIT_IBM_TOKEN`, so `quantum.enabled` is `false` for every room and **the hosted
+demo has never measured a collapse on real hardware**. No result in this repository
+comes from real hardware; one local one-shot job is recorded in `docs/HANDOFF.md` to
+confirm the path. Enabling it is an operator action, documented below; it was not
+performed as part of the code change.
 
 Nothing in this document claims a deployment or a hardware run that was not actually
 performed and recorded.
