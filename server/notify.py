@@ -1,112 +1,131 @@
-"""Optional, non-blocking Discord notifications for game lifecycle events."""
+"""Optional Discord notifications for game creation and game over.
+
+Owner: **P5 -- rules, engine, harness and batches**.
+
+Design rules (from the project addendum):
+
+* Read ``DISCORD_WEBHOOK_URL`` from the environment. **Unset or empty means disabled**,
+  and a disabled notifier is a no-op that never schedules anything.
+* Only two events, ``game_created`` and ``game_over``. No per-move logging, no chat, no
+  secrets -- the webhook URL itself is never included in a payload.
+* A notification **can never delay or fail a game**. It is dispatched with
+  ``loop.create_task`` from the request handler, and every exception inside the send is
+  swallowed. A slow or dead webhook leaves the game completely unaffected.
+
+Nothing here is imported by the engine, the runner or the tests' hot paths, so turning
+the hook off removes even the import cost.
+"""
 
 from __future__ import annotations
 
-import json
-import logging
+import asyncio
 import os
-from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any, Mapping
-from urllib.error import URLError
-from urllib.request import Request, urlopen
 
-logger = logging.getLogger(__name__)
-_DELIVERY_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="qcheckers-notify")
-_DELIVERY_TIMEOUT_SECONDS = 3.0
+#: Embed colour (matches the client's player-0 blue).
+EMBED_COLOR = 0x1F5FBF
+
+#: Fields copied into the embed, in display order. Duration and moves are only present
+#: on the game-over event.
+_FIELD_ORDER = (
+    "level",
+    "mode",
+    "result",
+    "reason",
+    "moves",
+    "duration_s",
+    "seed",
+    "game_id",
+)
 
 
-def build_embed(event: str, details: Mapping[str, Any]) -> dict[str, Any]:
-    """Build a credential-free Discord embed for a game lifecycle event."""
-    game_id = str(details.get("game_id", "unknown"))
-    if event == "game_created":
-        description = (
-            f"Game `{game_id}` created "
-            f"(level {details.get('level', 'unknown')}, "
-            f"mode {details.get('mode', 'unknown')}, "
-            f"seed {details.get('seed', 'unknown')})."
-        )
-        fields: list[dict[str, Any]] = []
-        color = 0x5865F2
-        label = "Game created"
-    elif event == "game_over":
-        winner = details.get("result")
-        result = "Draw" if winner is None else f"Player {winner} won"
-        try:
-            duration = f"{float(details.get('duration_s', 0.0)):.1f}s"
-        except (TypeError, ValueError, OverflowError):
-            duration = "unknown"
-        description = (
-            f"{result} in `{game_id}` after {details.get('moves', 0)} moves "
-            f"({duration})."
-        )
-        fields = [
-            {"name": "Level", "value": str(details.get("level", "unknown")), "inline": True},
-            {"name": "Mode", "value": str(details.get("mode", "unknown")), "inline": True},
-            {"name": "Reason", "value": str(details.get("reason", "unknown")), "inline": True},
-            {"name": "Seed", "value": str(details.get("seed", "unknown")), "inline": True},
-        ]
-        color = 0x57F287 if winner is not None else 0xFEE75C
-        label = "Game over"
-    else:
-        raise ValueError(f"unsupported notification event {event!r}")
+def build_embed(kind: str, fields: Mapping[str, Any]) -> dict[str, Any]:
+    """Turn an event plus its fields into one Discord embed (JSON-ready).
 
-    embed: dict[str, Any] = {
-        "title": f"Quantum Checkers — {label}",
-        "description": description,
-        "color": color,
+    Kept as a pure function so the payload shape is unit-testable without any network.
+    """
+    titles = {
+        "game_created": "Quantum Checkers \u2014 game created",
+        "game_over": "Quantum Checkers \u2014 game over",
     }
-    if fields:
-        embed["fields"] = fields
-    return embed
+    lines: list[str] = []
+    for key in _FIELD_ORDER:
+        value = fields.get(key)
+        if value is None or value == "":
+            continue
+        if key == "duration_s":
+            lines.append(f"**duration**: {value:.1f}s")
+        else:
+            lines.append(f"**{key}**: {value}")
+    return {
+        "title": titles.get(kind, f"Quantum Checkers \u2014 {kind}"),
+        "description": "\n".join(lines)[:3900] or "\u2014",
+        "color": EMBED_COLOR,
+    }
 
 
+@dataclass
 class Notifier:
-    """Fire-and-forget Discord webhook delivery with bounded network waits."""
+    """Fire-and-forget Discord notifier.
 
-    def __init__(self, webhook_url: str | None = None) -> None:
-        self._webhook_url = (webhook_url or "").strip()
+    ``url`` empty/``None`` disables the hook entirely.
+    """
+
+    url: str | None = None
+
+    def __post_init__(self) -> None:
+        self.url = (self.url or "").strip()
 
     @property
     def enabled(self) -> bool:
-        return bool(self._webhook_url)
+        return bool(self.url)
 
-    def game_created(self, **details: Any) -> None:
-        self._submit("game_created", details)
+    def game_created(self, **fields: Any) -> None:
+        self.fire("game_created", fields)
 
-    def game_over(self, **details: Any) -> None:
-        self._submit("game_over", details)
+    def game_over(self, **fields: Any) -> None:
+        self.fire("game_over", fields)
 
-    def _submit(self, event: str, details: Mapping[str, Any]) -> None:
+    def fire(self, kind: str, fields: Mapping[str, Any]) -> None:
+        """Schedule one notification, or do nothing when disabled.
+
+        Never raises: no running loop, no httpx, a dead webhook, or a 4xx all leave the
+        game untouched.
+        """
         if not self.enabled:
             return
-        payload = {"embeds": [build_embed(event, details)]}
-        _DELIVERY_POOL.submit(self._deliver, payload)
-
-    def _deliver(self, payload: Mapping[str, Any]) -> None:
-        request = Request(
-            self._webhook_url,
-            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
-            headers={"Content-Type": "application/json", "User-Agent": "QuantumCheckers/1"},
-            method="POST",
-        )
         try:
-            with urlopen(request, timeout=_DELIVERY_TIMEOUT_SECONDS) as response:
-                if not 200 <= response.status < 300:
-                    logger.warning(
-                        "Discord notification returned HTTP status %s", response.status
-                    )
-        except (OSError, URLError, TimeoutError) as error:
-            logger.warning(
-                "Discord notification delivery failed (%s)", type(error).__name__
-            )
+            loop = asyncio.get_running_loop()
+        except RuntimeError:  # no loop (e.g. called from a sync context): skip silently
+            return
+        try:
+            loop.create_task(self._post(kind, dict(fields)))
+        except Exception:  # pragma: no cover - defensive
+            return
+
+    async def _post(self, kind: str, fields: Mapping[str, Any]) -> None:
+        try:
+            import httpx
+
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                await client.post(
+                    str(self.url), json={"embeds": [build_embed(kind, fields)]}
+                )
+        except Exception:
+            # Swallow everything: the notification is best-effort by contract.
+            return
 
 
-def notifier_from_env(webhook_url: str | None = None) -> Notifier:
-    """Use an explicit URL when provided, otherwise read the server environment."""
-    configured_url = (
-        webhook_url if webhook_url is not None else os.environ.get("DISCORD_WEBHOOK_URL", "")
-    )
-    return Notifier(configured_url)
+def notifier_from_env(explicit: str | None = None) -> Notifier:
+    """Build a notifier from an explicit value, else ``DISCORD_WEBHOOK_URL``.
+
+    Passing ``""`` explicitly disables the hook even when the environment variable is
+    set, which is what the tests use.
+    """
+    if explicit is None:
+        explicit = os.environ.get("DISCORD_WEBHOOK_URL")
+    return Notifier(explicit)
 
 
-__all__ = ["Notifier", "build_embed", "notifier_from_env"]
+__all__ = ["EMBED_COLOR", "Notifier", "build_embed", "notifier_from_env"]

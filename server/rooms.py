@@ -466,7 +466,7 @@ class Room:
         # the game client can render a per-square counter. Empty when decoherence is off.
         coherence: dict[str, int] = {}
         for piece in self.state.pieces:
-            ticks = dict(self.state.coherence).get(piece.piece_id) if self.paper_rules else getattr(piece, "coherence", None)
+            ticks = dict(self.state.coherence).get(piece.piece_id) if self.paper_rules else piece.coherence
             if piece.is_spread and ticks is not None and piece.sites:
                 origin = piece.sites[0][0]
                 coherence[f"{origin[0]},{origin[1]}"] = ticks
@@ -584,12 +584,7 @@ class Room:
         seat = self.seat_number_of(player_id)
         if seat is None:
             raise ProtocolError("this connection holds no seat", "not_seated")
-        # In local mode, the creator holds both seats (same player_id), so allow
-        # moves for whichever player's turn it is. The engine's legal_actions
-        # already filters to the current turn's moves.
-        if self.mode == "local" and player_id == self.creator_id:
-            pass  # allow
-        elif not self._may_move(seat):
+        if not self._may_move(seat):
             raise ProtocolError("it is not your turn", "not_your_turn")
 
         action = resolve_action(self.engine, self.state, message)
