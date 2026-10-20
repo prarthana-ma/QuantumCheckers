@@ -10,8 +10,8 @@ Public surface:
 
 The server adds no rule logic. It resolves each client message against
 ``qcheckers.engine.legal_actions`` and applies the matching action, so the engine stays
-the single source of truth (brief constraint C1). The contract is frozen in
-``docs/PROTOCOL.md``.
+the single source of truth (brief constraint C1). The contract is the frozen wire
+contract.
 """
 
 from server.app import CLOSE_UNKNOWN_GAME, CreateGameRequest, create_app

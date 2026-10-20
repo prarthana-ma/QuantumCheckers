@@ -29,8 +29,8 @@ There are exactly two modes:
 Honesty boundary
 ----------------
 These are OUR circuits for OUR mechanics. They do not reproduce the upstream
-Cheqqers paper's engine (not integrated, AGPL-3.0, deliberate decision — see
-``docs/ATTRIBUTION.md``). Where a circuit simplifies the full game
+Cheqqers paper's engine (not integrated, AGPL-3.0, deliberate decision — documented
+in the project report). Where a circuit simplifies the full game
 mechanic, its docstring says exactly how.
 """
 

@@ -501,7 +501,7 @@ function TurnBanner({
 }
 
 /**
- * The move log. Renders `last_action` verbatim (PROTOCOL.md §3.2) and never
+ * The move log. Renders `last_action` verbatim and never
  * reconstructs an action to fill a gap.
  */
 function MoveLog({ state }: { state: GameState }) {

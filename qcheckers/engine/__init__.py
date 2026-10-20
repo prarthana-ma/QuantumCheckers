@@ -1,7 +1,7 @@
 """Game engine layer.
 
 Person A owns ``protocol.py`` and ``toy.py``. Nothing outside this
-subpackage may change core rule logic (see ``docs/TEAM.md``).
+subpackage may change core rule logic.
 """
 
 from qcheckers.engine.protocol import (

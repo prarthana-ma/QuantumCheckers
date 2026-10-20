@@ -1,11 +1,11 @@
 /**
  * Wire types for the QCheckers game server.
  *
- * Frozen contract: `docs/PROTOCOL.md`. Field names here mirror the server's JSON
+ * Frozen wire contract. Field names here mirror the server's JSON
  * exactly (snake_case on the wire), so a `StateUpdate` frame is assignable to
  * `GameState` with no translation layer.
  *
- * Rule discipline (PROTOCOL.md C1): the server validates every move and ships the
+ * Rule discipline (C1): the server validates every move and ships the
  * legal-action list with each state. Nothing in this file computes legality.
  *
  * Naming: the protocol's own message names (`Move`, `SplitMove`, `Resign`, …) are
@@ -23,7 +23,7 @@ export type Square = [number, number];
 /** A square as it may appear on the wire: the pair the browser sends, or `"c3"`. */
 export type Squareish = Square | string;
 
-/** A seat. `null` means spectator. Seats, never colour names (PROTOCOL.md §0.2). */
+/** A seat. `null` means spectator. Seats, never colour names. */
 export type Seat = 0 | 1;
 
 /** Chance weight in `[0, 1]`. The weights of one piece always sum to 1. */
@@ -45,7 +45,7 @@ export interface PieceMsg {
     survival_probability?: number;
 }
 
-/** `engine.render(state)` verbatim (PROTOCOL.md §3.2). */
+/** `engine.render(state)` verbatim. */
 export interface BoardMsg {
     engine: string;
     level: number;
@@ -230,7 +230,7 @@ export interface GameState {
     quantum?: QuantumStatus;
     /** True while a hardware measurement is running. Drives the pending indicator. */
     quantum_pending?: boolean;
-    /** Present only in the per-socket view (PROTOCOL.md §3.2). */
+    /** Present only in the per-socket view. */
     player_id?: string;
 }
 
@@ -240,7 +240,7 @@ export type GameOverReason = "no_pieces" | "no_legal_moves" | "ply_limit" | "res
 /** Alias for the narrower spelling used in the frozen samples. */
 export type TerminationReason = GameOverReason;
 
-/** The `GameOver` payload (PROTOCOL.md §0.2). */
+/** The `GameOver` payload. */
 export interface GameOverMsg {
     /** Winning seat, or `null` for a draw. Seats, never colour names. */
     result: Seat | null;
@@ -286,7 +286,7 @@ export type QuantumPending = {
 export type ServerMessage = StateUpdate | GameOver | Error | Tick | QuantumPending;
 
 // ---------------------------------------------------------------------------
-// Client -> server messages (PROTOCOL.md §3.1)
+// Client -> server messages
 // ---------------------------------------------------------------------------
 
 export type ClientMessage =

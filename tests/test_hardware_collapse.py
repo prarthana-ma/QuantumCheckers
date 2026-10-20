@@ -14,7 +14,7 @@ live collapse writes into game state":
 
 No real QPU job is run here: ``IBMHardwareSampler`` takes a ``runner`` so tests replace
 the whole IBM boundary. Running one real hardware job still requires a valid
-``QISKIT_IBM_TOKEN`` (see docs/DEPLOYMENT.md) and is not covered by these tests.
+``QISKIT_IBM_TOKEN`` and is not covered by these tests.
 """
 
 from __future__ import annotations

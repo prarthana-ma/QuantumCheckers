@@ -15,8 +15,7 @@ one term away from.
 Integration boundary
 --------------------
 The upstream engine is intentionally not integrated: the study uses the documented
-toy engine, and the upstream licence/scope decision is recorded in
-``docs/REPRODUCIBILITY.md``.
+toy engine, and the upstream licence/scope decision is deliberate.
 
 Deliberate design choices
 -------------------------

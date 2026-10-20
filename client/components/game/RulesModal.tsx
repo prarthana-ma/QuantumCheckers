@@ -8,7 +8,7 @@
  *
  *  - It describes what the engine actually does, never what a paper might do.
  *    Stages 2 and 4 are mechanics this project invented, and they say so in the
- *    same breath as the explanation (PROTOCOL.md §6).
+ *    same breath as the explanation.
  *  - The standing caveat travels with the rules, so the honesty note cannot be
  *    reached without the rule text that qualifies it.
  *

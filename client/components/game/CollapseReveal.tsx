@@ -8,7 +8,7 @@ import { causeLabel, describeAction, pctFine, sqKey, squareName } from "./board-
 /**
  * One entry of the session log. Built only from frames the server has already
  * sent: `last_action` and `last_event` verbatim. Nothing here reconstructs an
- * action we were not told about (PROTOCOL.md §3.2).
+ * action we were not told about.
  */
 export interface HistoryEntry {
   key: string;

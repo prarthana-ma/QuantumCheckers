@@ -11,7 +11,7 @@
  *     the result card (it renders the result once `state.status` is `over`).
  *
  * Seat handling lives here, not in the board: on the first `StateUpdate` this socket
- * learns its own `player_id` (PROTOCOL.md §3.2 — a socket only ever receives its own
+ * learns its own `player_id` (a socket only ever receives its own
  * token), which is stored so a reload presents the same token and reclaims the seat.
  */
 

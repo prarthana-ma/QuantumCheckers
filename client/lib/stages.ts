@@ -151,7 +151,7 @@ export function modeLabel(value: string): string {
 }
 
 /**
- * The standing caveat shown wherever the board is (PROTOCOL.md §6): the model is
+ * The standing caveat shown wherever the board is: the model is
  * classical probability, so nothing here may imply amplitudes or a phase wheel.
  */
 export const AMPLITUDE_CAVEAT =

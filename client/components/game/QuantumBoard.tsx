@@ -158,7 +158,7 @@ export function QuantumBoard({
   );
 
   // Row 0 renders at the TOP of the board and row 0 is rank 1 (`squareName` reads
-  // the digit as `row + 1`, PROTOCOL.md §3.1), so the gutter counts 1..size going
+  // the digit as `row + 1`), so the gutter counts 1..size going
   // down. Counting up from `size` here would point every rank at the wrong row.
   const coords = useMemo(
     () => ({

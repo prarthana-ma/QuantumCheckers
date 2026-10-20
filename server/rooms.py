@@ -3,7 +3,7 @@
 Owner: **P5 -- rules, engine, harness and batches** (server-authoritative play), with
 **P1** owning the agent tiers the server seats.
 
-Design contract (see ``docs/PROTOCOL.md``, frozen):
+Design contract (frozen wire contract):
 
 * **C1 -- the engine is the single source of truth.** A client message is resolved by
   finding the matching action in ``engine.legal_actions(state)`` and applying it. There

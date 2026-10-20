@@ -3,7 +3,7 @@
  *
  * Seats are **opaque tokens**, not accounts: the server hands back a `player_id` and
  * the client presents it again to reclaim the same seat after a reload or a dropped
- * socket (PROTOCOL.md §5). No identity, no handle, no personal data is stored — only
+ * socket. No identity, no handle, no personal data is stored — only
  * the token, the lobby code and the labels the player typed for themselves.
  *
  * Keys are namespaced `qk.*` so they cannot collide with the zero-build viewer in

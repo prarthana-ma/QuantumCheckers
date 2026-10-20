@@ -2,7 +2,7 @@
 
 **NOVELTY PENDING GATE 5.** Nothing in this file is a validated result, and no claim
 that Observe is novel may be made until the full paper and follow-up literature have
-been read. See ``docs/quantum-checkers-project.md`` sections 11, 16 (Gate 5) and 18.
+been read.
 
 Owner: **Person C -- Observe and probability-aware search**. Nobody else may edit this
 file or the ``observe`` branch of the engine's legality rules.

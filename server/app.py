@@ -4,7 +4,7 @@ Owner: **P5 -- rules, engine, harness and batches**.
 
 The server is deliberately thin: it owns rooms, seats, turn order and broadcast, and it
 delegates every rule decision to :mod:`qcheckers.engine` through
-:func:`server.rooms.resolve_action`. See ``docs/PROTOCOL.md`` for the frozen contract.
+:func:`server.rooms.resolve_action`. The wire contract is frozen.
 
 Run it with::
 

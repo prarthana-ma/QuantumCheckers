@@ -4,6 +4,6 @@ uvicorn[standard]>=0.29,<1
 
 # Live IBM Quantum collapse path, enabled only when QISKIT_IBM_TOKEN is set. The
 # server imports these lazily, so it still starts (and plays the offline game) without
-# them; install them to enable hardware-backed gameplay. See docs/DEPLOYMENT.md.
+# them; install them to enable hardware-backed gameplay.
 qiskit>=2.0,<3
 qiskit-ibm-runtime>=0.42,<1

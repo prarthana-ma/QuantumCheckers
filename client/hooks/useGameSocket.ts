@@ -4,13 +4,13 @@
  * Transport for one game socket.
  *
  * Scope: **transport only**. This hook opens `ws://.../ws/{game_id}`, sends `JoinGame`
- * first (PROTOCOL.md §3: any other message before a seat is held is refused), keeps the
+ * first (any other message before a seat is held is refused), keeps the
  * latest `StateUpdate` in state, and hands back a `send` for the client's own builders.
  * It applies no rules and computes no legality; a refused move arrives as an `Error`
  * and the state is left untouched by the server.
  *
  * Reconnection is safe by design: presenting the same `player_id` reclaims the same
- * seat (PROTOCOL.md §5), and the server sends the authoritative current state rather
+ * seat, and the server sends the authoritative current state rather
  * than replaying history.
  */
 
@@ -29,7 +29,7 @@ import {
 /** Reconnect attempts before the hook stops trying. */
 const MAX_RECONNECT_ATTEMPTS = 5;
 
-/** WebSocket close code the server uses for an unknown lobby (PROTOCOL.md §3). */
+/** WebSocket close code the server uses for an unknown lobby. */
 const CLOSE_UNKNOWN_GAME = 4404;
 
 export interface UseGameSocketOptions {

@@ -9,7 +9,7 @@
  * 2. The seat token is never typed or guessed. If this browser already holds a seat
  *    in that lobby its token is presented again, which makes a reload a *reconnect*
  *    rather than a third player; a first-time joiner gets a fresh token from the
- *    socket's own `StateUpdate` (PROTOCOL.md §3.2) and the game route stores it.
+ *    socket's own `StateUpdate` and the game route stores it.
  */
 
 import { useRouter } from "next/navigation";

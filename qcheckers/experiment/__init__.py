@@ -1,6 +1,6 @@
 """Experiment layer: record schema, seeded runner, statistics, configuration.
 
-Ownership (see ``docs/TEAM.md``):
+Ownership:
 
 * :mod:`schema` -- **Person B** (log format is part of the harness contract).
 * :mod:`runner` -- **Person B**.

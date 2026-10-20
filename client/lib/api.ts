@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * REST helpers for the game server (PROTOCOL.md §2).
+ * REST helpers for the game server.
  *
  * All calls are browser-side `fetch` against the configured game server.
  * Errors are surfaced as thrown `ApiError`s carrying the

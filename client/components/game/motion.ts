@@ -100,7 +100,7 @@ export function deriveMotion(previous: BoardMsg | null, current: BoardMsg): Boar
     }
 
     // Two squares apart on an axis means the engine classified this as a capture
-    // (PROTOCOL.md §3.1: `Move` covers both, and the engine decides which).
+    // (`Move` covers both, and the engine decides which).
     const jumpedTwo = Math.abs(from[0] - to[0]) === 2 && Math.abs(from[1] - to[1]) === 2;
     transitions.set(
       piece.piece_id,

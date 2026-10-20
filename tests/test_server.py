@@ -3,7 +3,7 @@
 Phase 1 acceptance (brief): a scripted two-client test opens two WebSocket
 connections, plays a full Level-0 game to ``GameOver`` using only legal engine moves,
 and shows that an illegal move returns ``Error`` with the state unchanged. Everything
-else here pins the frozen contract in ``docs/PROTOCOL.md``:
+else here pins the frozen wire contract:
 
 * the server is authoritative -- every accepted move is one the engine listed;
 * refused moves are inert;
