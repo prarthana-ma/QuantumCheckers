@@ -57,6 +57,72 @@ def test_default_app_uses_paper_rules_and_standard_opening(monkeypatch):
             assert after["board"]["paper_rules"] is True
 
 
+def test_create_game_accepts_observe_opt_in(monkeypatch):
+    monkeypatch.setenv("QCHECKERS_DISABLE_HARDWARE", "1")
+    with TestClient(create_app(tick_seconds=0)) as client:
+        response = client.post(
+            "/api/game",
+            json={"level": 1, "mode": "local", "allow_observe": True},
+        )
+        assert response.status_code == 201
+        game = response.json()
+        room = client.app.state.registry.require(game["game_id"])
+        assert room.engine.allow_observe is True
+        view = client.get(
+            f"/api/game/{game['game_id']}/view",
+            params={"player_id": game["player_id"]},
+        ).json()
+        assert view["board"]["allow_observe"] is True
+
+
+def test_create_game_level_one_defaults_observe_off(monkeypatch):
+    monkeypatch.setenv("QCHECKERS_DISABLE_HARDWARE", "1")
+    with TestClient(create_app(tick_seconds=0)) as client:
+        response = client.post("/api/game", json={"level": 1, "mode": "local"})
+        assert response.status_code == 201
+        game = response.json()
+        room = client.app.state.registry.require(game["game_id"])
+        assert room.engine.allow_observe is False
+        view = client.get(
+            f"/api/game/{game['game_id']}/view",
+            params={"player_id": game["player_id"]},
+        ).json()
+        assert view["board"]["allow_observe"] is False
+
+
+def test_create_game_level_four_defaults_observe_on(monkeypatch):
+    monkeypatch.setenv("QCHECKERS_DISABLE_HARDWARE", "1")
+    with TestClient(create_app(tick_seconds=0)) as client:
+        response = client.post("/api/game", json={"level": 4, "mode": "local"})
+        assert response.status_code == 201
+        game = response.json()
+        room = client.app.state.registry.require(game["game_id"])
+        assert room.engine.allow_observe is True
+        view = client.get(
+            f"/api/game/{game['game_id']}/view",
+            params={"player_id": game["player_id"]},
+        ).json()
+        assert view["board"]["allow_observe"] is True
+
+
+def test_create_game_level_four_can_disable_observe(monkeypatch):
+    monkeypatch.setenv("QCHECKERS_DISABLE_HARDWARE", "1")
+    with TestClient(create_app(tick_seconds=0)) as client:
+        response = client.post(
+            "/api/game",
+            json={"level": 4, "mode": "local", "allow_observe": False},
+        )
+        assert response.status_code == 201
+        game = response.json()
+        room = client.app.state.registry.require(game["game_id"])
+        assert room.engine.allow_observe is False
+        view = client.get(
+            f"/api/game/{game['game_id']}/view",
+            params={"player_id": game["player_id"]},
+        ).json()
+        assert view["board"]["allow_observe"] is False
+
+
 def test_paper_split_dispatch_validates_both_destinations(monkeypatch):
     monkeypatch.setenv("QCHECKERS_DISABLE_HARDWARE", "1")
     room = Room(game_id="paper-split", level=1, mode="local", seed=0, board_size=6, paper_rules=True)

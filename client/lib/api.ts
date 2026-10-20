@@ -55,6 +55,8 @@ export interface CreateGameRequest {
     seed?: number | null;
     /** Optional board size; the live server defaults to 8. */
     board_size?: number | null;
+    /** Optional room-level voluntary Observe rule; omitted keeps the stage default. */
+    allow_observe?: boolean | null;
 }
 
 export interface CreateGameResponse {
@@ -77,6 +79,9 @@ export async function createGame(request: CreateGameRequest): Promise<CreateGame
             ...(request.board_size === null || request.board_size === undefined
                 ? {}
                 : { board_size: request.board_size }),
+            ...(request.allow_observe === null || request.allow_observe === undefined
+                ? {}
+                : { allow_observe: request.allow_observe }),
         }),
     });
     if (!response.ok) throw await toError(response);

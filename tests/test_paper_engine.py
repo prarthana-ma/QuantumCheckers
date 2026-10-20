@@ -446,7 +446,7 @@ def test_failed_apply_restores_internal_rng_after_measurement(monkeypatch):
     assert state.piece("A").survival_probability == pytest.approx(1.0)
 
 
-def test_voluntary_measurement_is_level_four_only():
+def test_voluntary_measurement_requires_the_room_rule():
     engine = PaperQuantumEngine(board_size=4, level=2)
     state = engine.state_from_amplitudes(
         {
@@ -457,8 +457,63 @@ def test_voluntary_measurement_is_level_four_only():
         turn=0,
     )
 
-    with pytest.raises(PaperRuleError, match="only available at level 4"):
+    assert engine.allow_observe is False
+    with pytest.raises(PaperRuleError, match="not enabled"):
         engine.measure_piece(state, "A")
+
+
+def test_default_level_two_has_observe_disabled():
+    assert PaperQuantumEngine(level=2).allow_observe is False
+
+
+@pytest.mark.parametrize("level", [1, 2])
+def test_observe_opt_in_offers_action_after_split(level):
+    engine = PaperQuantumEngine(board_size=4, level=level, allow_observe=True)
+    state = engine.state_from_amplitudes(
+        {config(("A", (3, 2), False)): 1}, owners={"A": 0}, turn=0
+    )
+    split = engine.apply(
+        state, PaperSplitAction("A", (3, 2), ((2, 1), (2, 3)))
+    ).state.clone(turn=0)
+
+    assert PaperObserveAction("A", (2, 1)) in engine.legal_actions(split)
+
+
+def test_level_four_default_enables_observe():
+    engine = PaperQuantumEngine(board_size=4, level=4)
+    state = engine.state_from_amplitudes(
+        {
+            config(("A", (2, 1), False)): 1 / math.sqrt(2),
+            config(("A", (2, 3), False)): 1 / math.sqrt(2),
+        },
+        owners={"A": 0},
+        turn=0,
+    )
+
+    assert engine.allow_observe is True
+    assert PaperObserveAction("A", (2, 1)) in engine.legal_actions(state)
+
+
+def test_level_four_can_disable_observe():
+    engine = PaperQuantumEngine(board_size=4, level=4, allow_observe=False)
+    state = engine.state_from_amplitudes(
+        {
+            config(("A", (2, 1), False)): 1 / math.sqrt(2),
+            config(("A", (2, 3), False)): 1 / math.sqrt(2),
+        },
+        owners={"A": 0},
+        turn=0,
+    )
+
+    assert not any(isinstance(action, PaperObserveAction) for action in engine.legal_actions(state))
+
+
+def test_clone_preserves_explicit_allow_observe():
+    engine = PaperQuantumEngine(seed=1, board_size=4, level=2, allow_observe=True)
+
+    clone = engine.clone()
+
+    assert clone.allow_observe is True
 
 
 def test_level_four_decoherence_projects_only_the_expired_piece():

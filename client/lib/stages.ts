@@ -58,7 +58,7 @@ export const STAGES: StageDef[] = [
             "A branch can move normally or split again. All branches still belong to one original piece.",
             "Capturing measures a split attacker first. If it is not at the chosen starting square, the turn passes without measuring the defender.",
             "If the attacker is present, a split defender is measured next. The jump succeeds only if the defender is found on the jumped square; otherwise the turn passes.",
-            "Forced captures, kings and the draw rule still apply. Voluntary Observe is available only in the custom fifth stage.",
+            "Forced captures, kings and the draw rule still apply. Voluntary Observe is an optional rule when creating a game; captures still measure automatically.",
         ],
     },
     {
@@ -93,7 +93,7 @@ export const STAGES: StageDef[] = [
         detail: [
             "This fifth stage is a project extension; the paper defines levels 0 through 3.",
             "An unresolved piece starts with six coherence ticks. Completed turns reduce its counter; at zero it is measured automatically.",
-            "Observe lets you measure a selected piece voluntarily and consumes a turn. It cannot bypass a mandatory capture or a capture chain.",
+            "Observe is on by default at this stage. It lets you measure a selected piece voluntarily and consumes a turn. It cannot bypass a mandatory capture or a capture chain.",
             "Measurement projects the shared quantum state, so correlated pieces can change when one is measured. Split and merge refresh that piece's counter.",
         ],
         unlock: {

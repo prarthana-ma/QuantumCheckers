@@ -33,12 +33,13 @@ quantum state: it can occupy several squares at once, and the board is stored as
 set of complex amplitudes over complete board configurations, evolved on the CPU. Levels
 0–3 implement the staged rules of Raat *et al.* [1]: superposition with measurement,
 entanglement, then interference. Level 4 is a project extension with a coherence timer
-and a voluntary `Observe` action. Every collapse of uncertainty is encoded as a
+and voluntary `Observe` on by default. Voluntary `Observe` is also available as an opt-in
+rule from Level 1. Every collapse of uncertainty is encoded as a
 measurement circuit. When IBM Quantum credentials are configured, the collapse is
 resolved with one measurement shot on IBM hardware; a failed job or an unusable bitstring
 refuses the move and leaves the state unchanged. The system includes a FastAPI and
 WebSocket server, a Next.js client with a lobby, stage selection and reconnectable seats,
-and a hosted deployment. The Python suite passes (449 tests on 19 October 2026), and the
+and a hosted deployment. The Python suite passes (459 tests on 20 October 2026), and the
 client tests, typecheck and production build pass. The IBM boundary is tested against a
 mock, and one real one-shot job on `ibm_fez` (19 October 2026) confirmed the hardware
 path. The board state never runs on a QPU; the processor supplies one measurement sample
@@ -113,7 +114,8 @@ verification.
 
 - Implement Levels 0 to 3 of the paper's staged quantum checkers, covering superposition
   with measurement, entanglement and interference, plus a project-defined Level 4 with a
-  coherence timer and voluntary `Observe`.
+  coherence timer and voluntary `Observe`, which is on by default at Level 4 and can be
+  enabled as an opt-in rule from Level 1.
 - Maintain an exact sparse complex-amplitude state over complete labelled board
   configurations. Game probabilities are occupancy marginals (`|amplitude|²`), and each
   operation is bounded by a branch cap.
@@ -193,7 +195,8 @@ design, the project adds:
    only the source column, merge applies the adjoint, and every operation is bounded by a
    branch cap.
 2. A project-defined Level 4 with a coherence timer that collapses a piece automatically,
-   and a voluntary `Observe` action, both integrated into play and into the search agent.
+   and a voluntary `Observe` action that is on by default there and can be enabled as an
+   opt-in rule from Level 1, both integrated into play and into the search agent.
 3. A hardware path in which every collapse is a one-shot measurement circuit. When IBM
    Quantum is configured, one real shot resolves the collapse, with explicit error codes
    (`quantum_unavailable`, `quantum_invalid_outcome`) and visible provenance. No value is
@@ -239,7 +242,8 @@ them. Level 2 adds entanglement: an unsplit attacker capturing a split defender 
 correlated capture and no-capture branches, so joint correlations are preserved. Level 3
 adds merge, the inverse split and the adjoint of the completion, so parts of the same
 original piece can rejoin and interfere. Level 4 adds a six-tick coherence clock and
-voluntary `Observe`. Split, merge and `Observe` refresh a piece's coherence; it loses one
+turns voluntary `Observe` on by default; `Observe` can also be enabled as an opt-in rule
+from Level 1. Split, merge and `Observe` refresh a piece's coherence; it loses one
 tick per completed turn and collapses at zero. Promotion carries a hidden path tag in the
 joint state so amplitudes from different promotion histories cannot merge. An operation
 that would exceed the 4,096-branch cap is refused before any partial state is returned.
@@ -267,9 +271,11 @@ the agent falls back to the first legal action to preserve the legal-action cont
 Uncertainty resolves through explicit collapse events. At Level 1, capture attempts
 measure the affected split pieces in the paper's order, and a failed location attempt
 passes the turn. At Level 2 the same situation is handled by correlated branches instead
-of an immediate measurement of the defender. At Level 4 a player can spend a turn on
-`Observe` to resolve a chosen piece's uncertainty; `Observe` does not bypass a mandatory
-capture. The coherence clock collapses a piece automatically when it reaches zero. A
+of an immediate measurement of the defender. At Level 4, or earlier when the room enables
+the opt-in rule, a player can spend a turn on `Observe` to resolve a chosen piece's
+uncertainty; `Observe` does not bypass a mandatory capture. Voluntary `Observe` is
+available as an opt-in room rule on Levels 1 through 3 and is on by default at Level 4.
+The coherence clock collapses a piece automatically when it reaches zero. A
 collapse samples a square from the piece's candidate distribution once, following the
 Born rule: each candidate's weight is its marginal probability. By default the sample
 comes from the engine's seeded sampler. When hardware sampling is configured, the sample
@@ -370,8 +376,8 @@ instance.
 
 The Python suite covers the engine, rule behaviour (captures, chains, crowning, draw
 rules, merges and interference), agent legality and determinism, the branch cap, the
-server protocol, the circuit builder and the IBM boundary against a mock. 449 tests pass
-on 19 October 2026. The client passes `npm test` (19/19), `npm run typecheck` and a
+server protocol, the circuit builder and the IBM boundary against a mock. 459 tests pass
+on 20 October 2026. The client passes `npm test` (19/19), `npm run typecheck` and a
 production `npm run build`. One real one-shot job confirmed the live path (section 6.2).
 The tests establish implementation behaviour; they do not establish paper-wide conformance
 or agent strength.
@@ -422,7 +428,7 @@ the processor supplied one measurement sample for one collapse.
 
 ### 6.3 Verification results
 
-- Python suite: 449 tests pass on 19 October 2026, including rule transitions, merge and
+- Python suite: 459 tests pass on 20 October 2026, including rule transitions, merge and
   interference cases, branch-cap refusal, agent determinism, server protocol checks,
   circuit construction and the mocked IBM boundary.
 - Client: `npm test` 19/19, `npm run typecheck` clean, production build successful.
@@ -515,7 +521,8 @@ October 2026. Read-only reference; no code copied or integrated.
 1. Open [QCheckers](https://quriousminds.vercel.app) in a modern browser.
 2. Select **Start a game**, choose a stage and opponent, then select **Create game**.
 3. Levels 0–3 use the paper-based movement, split, entanglement and interference model.
-   Level 4 adds the project's decoherence timer and voluntary `Observe`.
+   Level 4 adds the project's decoherence timer and turns voluntary `Observe` on by
+   default; it can also be enabled as an opt-in rule from Level 1.
 4. The board renders occupancy probabilities derived from the CPU-held complex state; it
    does not expose raw amplitudes or phases. When configured, IBM Quantum supplies a
    single collapse sample.

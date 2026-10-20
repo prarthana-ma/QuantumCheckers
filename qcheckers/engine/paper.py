@@ -219,16 +219,18 @@ class PaperState:
 class PaperQuantumEngine:
     """Sparse exact-amplitude engine for paper levels 0–3 plus custom level 4.
 
-    Level 4 adds the project's optional Observe/decoherence extension. Levels 0–3
-    permit no voluntary measurement. `state_from_amplitudes` is public to support
-    curated positions, analysis and small conformance tests.
+    Level 4 adds the project's optional Observe/decoherence extension. Voluntary
+    measurement is opt-in on Levels 1-3 and on by default at Level 4.
+    `state_from_amplitudes` is public to support curated positions, analysis and small
+    conformance tests.
     """
 
     name = "paper-quantum"
 
     def __init__(self, seed: int = 0, *, board_size: int = 8, level: int = 0,
                  max_plies: int = 1000, sampler: Sampler | None = None,
-                 max_branches: int = 4096, decoherence_ticks: int = 6) -> None:
+                 max_branches: int = 4096, decoherence_ticks: int = 6,
+                 allow_observe: bool | None = None) -> None:
         if not 4 <= board_size <= 16:
             raise ValueError("board_size must be between 4 and 16")
         if level not in range(5):
@@ -243,7 +245,7 @@ class PaperQuantumEngine:
         self.max_plies = int(max_plies)
         self.max_branches = int(max_branches)
         self.decoherence_ticks = int(decoherence_ticks)
-        self.allow_observe = self.level == 4
+        self.allow_observe = self.level == 4 if allow_observe is None else bool(allow_observe)
         self.sampler = sampler
         self._rng = random.Random(self.seed)
 
@@ -252,6 +254,7 @@ class PaperQuantumEngine:
             self.seed if seed is None else int(seed), board_size=self.board_size,
             level=self.level, max_plies=self.max_plies, sampler=None,
             max_branches=self.max_branches, decoherence_ticks=self.decoherence_ticks,
+            allow_observe=self.allow_observe,
         )
 
     def initial_state(self) -> PaperState:
@@ -460,8 +463,8 @@ class PaperQuantumEngine:
                 candidates.update(self._split_actions(state))
             if self.level >= 3:
                 candidates.update(self._merge_actions(state))
-        # Observe is an optional level-4 extension, but it may not bypass either
-        # forced continuation or the paper's mandatory-capture rule.
+        # Observe is opt-in on Levels 1-3 and on by default at Level 4, but it may not
+        # bypass either forced continuation or the paper's mandatory-capture rule.
         if self.allow_observe and state.continuation_piece is None and not captures:
             for piece in state.pieces_of(state.turn):
                 if piece.survival_probability > 0 and piece.is_spread:
@@ -767,7 +770,7 @@ class PaperQuantumEngine:
     def measure_piece(self, state: PaperState, piece_id: str) -> Step:
         """Project just one piece's position; spectator superpositions survive."""
         if not self.allow_observe:
-            raise PaperRuleError("voluntary measurement is only available at level 4")
+            raise PaperRuleError("voluntary measurement is not enabled for this room")
         if not state.piece(piece_id).is_spread:
             raise PaperRuleError("measurement requires a split piece")
         branches, event = self._project_piece(dict(state.amplitudes), state, piece_id, "observe")

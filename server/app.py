@@ -41,6 +41,7 @@ class CreateGameRequest(BaseModel):
     mode: str = "local"
     seed: int | None = None
     board_size: int = Field(default=8, ge=4, le=16)
+    allow_observe: bool | None = None
 
 
 def create_app(
@@ -226,6 +227,7 @@ def create_app(
                 seed=request.seed,
                 board_size=request.board_size if paper_rules or "board_size" in request.model_fields_set else 4,
                 max_plies=1000 if paper_rules else 200,
+                allow_observe=request.allow_observe,
             )
         except QuantumMeasurementError as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from None

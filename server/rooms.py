@@ -313,6 +313,10 @@ class Room:
     #: this module.
     quantum_sampler: IBMHardwareSampler | None = None
     paper_rules: bool = False
+    #: Room-level override for voluntary Observe. ``None`` keeps the engine default
+    #: (paper rules: on at Level 4) or the stage-based toy default below. A boolean
+    #: applies to both seats at every level.
+    allow_observe: bool | None = None
     #: Called (from a worker thread) when a hardware measurement starts, so the async
     #: layer can broadcast a pending frame. Never called for ordinary moves.
     on_quantum_change: Callable[["Room"], None] | None = None
@@ -354,9 +358,14 @@ class Room:
         # capture), and resolving one by choice -- Observe, or a targeted rejoin --
         # arrives with stage 2. The Hard tier has it at every level, because that is
         # what makes it Hard. Easy/Medium stay on the reproduced mechanics so the tiers
-        # are a clean strength ladder (Phase 3 acceptance).
-        allow_observe = (self.mode in ("local", "online") and self.level >= 2) or (
-            self.mode == "ai-hard"
+        # are a clean strength ladder (Phase 3 acceptance). A room-level allow_observe
+        # overrides this default for both engines.
+        default_allow_observe = (
+            self.mode in ("local", "online") and self.level >= 2
+        ) or (self.mode == "ai-hard")
+        allow_observe = (
+            default_allow_observe if self.allow_observe is None
+            else bool(self.allow_observe)
         )
 
         # Hardware mode: an explicitly injected sampler wins; otherwise build one only
@@ -386,6 +395,7 @@ class Room:
                 seed=self.seed, level=self.level, board_size=self.board_size,
                 max_plies=self.max_plies,
                 sampler=self._hardware_sample if self.quantum_sampler is not None else None,
+                allow_observe=self.allow_observe,
             )
         self.state = self.engine.initial_state()
         self._counts = {"move": 0, "capture": 0, "spread": 0, "rejoin": 0, "observe": 0, "merge": 0}
@@ -734,6 +744,7 @@ class RoomRegistry:
         seed: int | None = None,
         board_size: int = 4,
         max_plies: int = 200,
+        allow_observe: bool | None = None,
     ) -> Room:
         """Open a room and register it under a fresh lobby code."""
         if level not in SUPPORTED_LEVELS:
@@ -751,6 +762,7 @@ class RoomRegistry:
             max_plies=max_plies,
             on_game_over=self._writer,
             paper_rules=self.paper_rules,
+            allow_observe=allow_observe,
         )
         self._rooms[game_id] = room
         return room

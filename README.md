@@ -17,7 +17,8 @@ Development and Analysis of a Quantum Combinatorial Game," IEEE CoG 2025
   browser client, lobby, stage selection and reconnectable seats.
 - Levels 0–3 follow the paper's staged mechanics: superposition and measurement,
   entanglement, then interference. Level 4 is our own extension with a coherence timer
-  and a voluntary **Observe** action.
+  and voluntary **Observe** on by default; **Observe** can also be enabled as an opt-in
+  rule from Level 1.
 - The board state is a sparse **complex-amplitude** state over complete board
   configurations, evolved on the CPU. The client shows occupancy probabilities
   (`|amplitude|²`); amplitudes and phases stay on the server.

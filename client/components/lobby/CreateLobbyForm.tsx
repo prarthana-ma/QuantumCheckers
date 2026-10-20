@@ -35,6 +35,7 @@ export function CreateLobbyForm({ initialLevel = 0, initialMode = "ai-easy" }: C
     const router = useRouter();
 
     const [level, setLevel] = useState(initialLevel);
+    const [allowObserve, setAllowObserve] = useState(initialLevel === 4);
     const [mode, setMode] = useState<ModeValue>(isMode(initialMode) ? initialMode : "ai-easy");
     const [seedText, setSeedText] = useState("");
     const [boardSize, setBoardSize] = useState(8);
@@ -63,7 +64,13 @@ export function CreateLobbyForm({ initialLevel = 0, initialMode = "ai-easy" }: C
         }
 
         try {
-            const game = await createGame({ level, mode, seed, board_size: boardSize });
+            const game = await createGame({
+                level,
+                mode,
+                seed,
+                board_size: boardSize,
+                allow_observe: level >= 1 ? allowObserve : false,
+            });
             // Store the seat token so a reload or a dropped socket reclaims this seat
             // instead of taking the other one.
             saveSession({
@@ -107,7 +114,10 @@ export function CreateLobbyForm({ initialLevel = 0, initialMode = "ai-easy" }: C
                         <button
                             key={entry.level}
                             type="button"
-                            onClick={() => setLevel(entry.level)}
+                            onClick={() => {
+                                setLevel(entry.level);
+                                setAllowObserve(entry.level === 4);
+                            }}
                             aria-pressed={entry.level === level}
                             className={cn(
                                 "rounded-lg border p-3 text-left transition-colors",
@@ -153,6 +163,45 @@ export function CreateLobbyForm({ initialLevel = 0, initialMode = "ai-easy" }: C
                     ))}
                 </CardContent>
             </Card>
+
+            {level >= 1 && (
+                <Card>
+                    <CardHeader className="pb-3">
+                        <CardTitle>Rules variant</CardTitle>
+                        <CardDescription>
+                            Allow either player to spend a whole turn measuring one of their split pieces.
+                            Forced captures still apply.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            {[
+                                { value: false, label: "Off", hint: "Voluntary Observe is not offered." },
+                                { value: true, label: "On", hint: "Either player may measure a split piece." },
+                            ].map((entry) => (
+                                <button
+                                    key={entry.label}
+                                    type="button"
+                                    onClick={() => setAllowObserve(entry.value)}
+                                    aria-pressed={entry.value === allowObserve}
+                                    className={cn(
+                                        "rounded-lg border p-3 text-left transition-colors",
+                                        entry.value === allowObserve
+                                            ? "border-primary bg-primary/10"
+                                            : "border-border hover:border-primary/40 hover:bg-accent/40",
+                                    )}
+                                >
+                                    <span className="block text-sm">{entry.label}</span>
+                                    <span className="mt-1 block text-xs text-muted-foreground">{entry.hint}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            {level === 4 ? "On by default at this stage." : "Off by default."}
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
 
             <Card>
                 <CardHeader className="pb-3">
