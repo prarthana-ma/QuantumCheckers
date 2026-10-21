@@ -406,8 +406,11 @@ phases, and the client never decides legality.
 *Figure 4. The board after a split (Stage 2, engine Level 1), showing the spread piece's chance distribution at each candidate square. The complete complex state stays in the CPU engine (captured 15 October 2026).*
 
 The hosted demo is available at [quriousminds.vercel.app](https://quriousminds.vercel.app);
-the frontend runs on Vercel and the API on Google Cloud Run. The deployment's engine
-revision has not been verified against this local source snapshot.
+the frontend runs on Vercel and the API on Google Cloud Run. The deployed revision
+`quriousminds-api-00001-fww` was verified on 21 October 2026: it serves `paper-quantum`,
+starts an 8x8 board with 24 pieces, and the hosted client connects through the deployed
+WebSocket. The service URL is
+`https://quriousminds-api-207368236521.asia-south1.run.app`.
 
 ### 6.2 Hardware measurement evidence
 
