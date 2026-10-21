@@ -490,6 +490,29 @@ def test_local_mode_creator_controls_both_seats(client: TestClient) -> None:
     assert room.state.turn == 0, "local play alternates through the same token"
 
 
+def test_local_mode_creator_cannot_move_the_seat_that_is_not_to_move(
+    client: TestClient,
+) -> None:
+    """The shared local token still has to respect the current turn."""
+    game_id, player0 = _new_game(client, level=0, mode="local", seed=6)
+    room: Room = client.app.state.registry.require(game_id)
+
+    first = room.engine.legal_actions(room.state)[0]
+    room.move(player0, _to_move_message(first.to_json()))
+    assert room.state.turn == 1
+
+    wrong_turn = room.engine.legal_actions(room.state.clone(turn=0))[0]
+    before = room.state
+    with pytest.raises(ProtocolError) as info:
+        room.move(player0, _to_move_message(wrong_turn.to_json()))
+    assert info.value.code == "illegal_move"
+    assert room.state is before
+
+    second = room.engine.legal_actions(room.state)[0]
+    room.move(player0, _to_move_message(second.to_json()))
+    assert room.state.turn == 0
+
+
 def test_registry_rejects_unknown_modes_and_levels() -> None:
     registry = RoomRegistry(log_path=None)
     with pytest.raises(ValueError):

@@ -1,9 +1,9 @@
-# Cloud Run's game API uses the standard-library toy engine.
+# Cloud Run's game API runs the exact-amplitude paper engine.
 fastapi>=0.110,<1
 uvicorn[standard]>=0.29,<1
+python-dotenv>=1.0,<2
 
-# Live IBM Quantum collapse path, enabled only when QISKIT_IBM_TOKEN is set. The
-# server imports these lazily, so it still starts (and plays the offline game) without
-# them; install them to enable hardware-backed gameplay.
+# Qiskit packages are only for the optional IBM Quantum hardware path; the server
+# imports them lazily and still runs the offline game without them.
 qiskit>=2.0,<3
 qiskit-ibm-runtime>=0.42,<1

@@ -39,7 +39,7 @@ measurement circuit. When IBM Quantum credentials are configured, the collapse i
 resolved with one measurement shot on IBM hardware; a failed job or an unusable bitstring
 refuses the move and leaves the state unchanged. The system includes a FastAPI and
 WebSocket server, a Next.js client with a lobby, stage selection and reconnectable seats,
-and a hosted deployment. The Python suite passes (459 tests on 20 October 2026), and the
+and a hosted deployment. The Python suite passes (460 tests on 21 October 2026), and the
 client tests, typecheck and production build pass. The IBM boundary is tested against a
 mock, and one real one-shot job on `ibm_fez` (19 October 2026) confirmed the hardware
 path. The board state never runs on a QPU; the processor supplies one measurement sample
@@ -376,8 +376,8 @@ instance.
 
 The Python suite covers the engine, rule behaviour (captures, chains, crowning, draw
 rules, merges and interference), agent legality and determinism, the branch cap, the
-server protocol, the circuit builder and the IBM boundary against a mock. 459 tests pass
-on 20 October 2026. The client passes `npm test` (19/19), `npm run typecheck` and a
+server protocol, the circuit builder and the IBM boundary against a mock. 460 tests pass
+on 21 October 2026. The client passes `npm test` (19/19), `npm run typecheck` and a
 production `npm run build`. One real one-shot job confirmed the live path (section 6.2).
 The tests establish implementation behaviour; they do not establish paper-wide conformance
 or agent strength.
@@ -428,7 +428,7 @@ the processor supplied one measurement sample for one collapse.
 
 ### 6.3 Verification results
 
-- Python suite: 459 tests pass on 20 October 2026, including rule transitions, merge and
+- Python suite: 460 tests pass on 21 October 2026, including rule transitions, merge and
   interference cases, branch-cap refusal, agent determinism, server protocol checks,
   circuit construction and the mocked IBM boundary.
 - Client: `npm test` 19/19, `npm run typecheck` clean, production build successful.

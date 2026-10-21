@@ -18,7 +18,18 @@ from __future__ import annotations
 import math
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
+
+# Load .env file if present, unless a test session asked to skip it.
+if os.environ.get("QCHECKERS_SKIP_DOTENV") not in ("1", "true", "yes"):
+    try:
+        from dotenv import load_dotenv
+        # Look for .env in the project root (parent of server/)
+        project_root = Path(__file__).parent.parent
+        load_dotenv(project_root / ".env")
+    except ImportError:
+        pass  # python-dotenv not installed, rely on environment variables only
 
 #: Default seconds to wait for a hardware job result before giving up. The wait runs in
 #: a worker thread (see :mod:`server.app`), so it never blocks the event loop.
