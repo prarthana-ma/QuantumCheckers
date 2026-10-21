@@ -16,7 +16,8 @@ from playwright.sync_api import sync_playwright
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--site", default="https://quriousminds.vercel.app")
-    parser.add_argument("--api", default="https://quriousminds-api-285568391757.asia-south1.run.app")
+    parser.add_argument("--api",
+                        default="https://quriousminds-api-207368236521.asia-south1.run.app")
     parser.add_argument("--expected-engine", default="paper-quantum",
                         choices=("paper-quantum", "deterministic-toy"))
     args = parser.parse_args()
